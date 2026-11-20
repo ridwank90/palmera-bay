@@ -29,14 +29,17 @@ const status = document.getElementById('status');
 const random = createRandom(seed);
 const city = generateCity(random);
 const audio = createAudio();
+// ?mute=1 starts silent (the screenshot harness and quiet rooms).
+if (params.get('mute') === '1') audio.setMuted(true);
 // Staged screenshots always start from a fresh save ($150, no jobs done), so
 // a screenshot never shows another session's fines or progress.
 const save = shot ? defaultSave() : loadSave();
 const world = createWorld(random, city, audio, save);
 const renderer = createRenderer(canvas);
 const input = createInput(canvas);
-// Debug hook for play-testing (and the screenshot harness): the live world.
-window.__palmera = { world, seed };
+// Debug hook for play-testing (and the screenshot harness): the live world,
+// the seed, the build version, and a frames-per-second reading.
+window.__palmera = { world, seed, version: 'v2', fps: 0 };
 
 // The canvas is 1280 x 720 inside and scales by CSS to fit the window; the
 // input needs the scale so the mouse aims in canvas pixels.
@@ -80,6 +83,9 @@ function runGame() {
   let accumulator = 0;
   let last = performance.now();
   let titleTime = 0;
+  // Frames per second, recomputed each second for the debug hook.
+  let frames = 0;
+  let fpsWindowStart = performance.now();
 
   // The title screen's backdrop: the city alive behind the panel, the camera
   // drifting over it. The world steps with an input that presses nothing.
@@ -125,6 +131,12 @@ function runGame() {
 
   function frame(now) {
     requestAnimationFrame(frame);
+    frames += 1;
+    if (now - fpsWindowStart >= 1000) {
+      window.__palmera.fps = Math.round((frames * 1000) / (now - fpsWindowStart));
+      frames = 0;
+      fpsWindowStart = now;
+    }
     accumulator += Math.min((now - last) / 1000, MAX_FRAME);
     last = now;
     handleActions();

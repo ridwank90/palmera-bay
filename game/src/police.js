@@ -5,7 +5,7 @@
 // him down, and an arrest means a fine and a trip to the hospital. Stars cool
 // off only when the player stays out of trouble and out of sight for a while.
 
-import { POLICE, WANTED, WORLD } from './config.js';
+import { HELI, POLICE, WANTED, WORLD } from './config.js';
 import { randomRoadPoint, resolveCircle } from './city.js';
 
 const POLICE_CARS = 6;
@@ -20,6 +20,8 @@ export function createPolice(random) {
   for (let i = 0; i < OFFICERS; i++) {
     officers.push({ active: false, x: 0, y: 0, angle: 0, speed: 0 });
   }
+  // The helicopter: circles overhead at five stars, leaves when the heat drops.
+  const heli = { active: false, leaving: false, x: 0, y: 0, angle: 0, rotor: 0 };
   let wanted = 0;
   let decayTimer = 0;
 
@@ -36,6 +38,8 @@ export function createPolice(random) {
     decayTimer = 0;
     for (const car of cars) car.active = false;
     for (const officer of officers) officer.active = false;
+    heli.active = false;
+    heli.leaving = false;
   }
 
   function activeCars() {
@@ -60,6 +64,8 @@ export function createPolice(random) {
       car.y = p.y;
       car.angle = Math.atan2(py - p.y, px - p.x);
       car.speed = 200;
+      // The light bars flash out of sync across cars.
+      car.lightTimer = random() * 2;
       car.active = true;
       return;
     }
@@ -162,6 +168,32 @@ export function createPolice(random) {
     const want = wantedCars();
     if (activeCars() < want) spawnCarNear(ctx.playerX, ctx.playerY);
     for (const car of cars) if (car.active) stepCar(car, dt, ctx);
+    // The helicopter: arrives at five stars, shadows the player, and flies
+    // off toward the north-west corner when the heat drops below five.
+    if (wanted === 5) {
+      if (!heli.active) {
+        heli.active = true;
+        heli.leaving = false;
+        heli.x = ctx.playerX - 500;
+        heli.y = ctx.playerY - 400;
+      }
+      const dx = ctx.playerX - heli.x;
+      const dy = ctx.playerY - heli.y;
+      const d = Math.hypot(dx, dy) || 1;
+      const sp = Math.min(HELI.speed, d * HELI.follow);
+      heli.x += (dx / d) * sp * dt;
+      heli.y += (dy / d) * sp * dt;
+      heli.angle = Math.atan2(dy, dx);
+    } else if (heli.active) {
+      heli.leaving = true;
+      heli.x -= HELI.leaveSpeed * dt;
+      heli.y -= HELI.leaveSpeed * 0.7 * dt;
+      if (heli.x < -120 || heli.y < -120) {
+        heli.active = false;
+        heli.leaving = false;
+      }
+    }
+    heli.rotor += dt * 28;
     // Police cars don't stack on one spot: push them apart from each other.
     for (let i = 0; i < cars.length; i++) {
       for (let j = i + 1; j < cars.length; j++) {
@@ -200,7 +232,7 @@ export function createPolice(random) {
   }
 
   return {
-    cars, officers,
+    cars, officers, heli,
     get wanted() { return wanted; },
     addWanted, clearWanted, nearestDistance, step,
   };

@@ -12,6 +12,9 @@ export function defaultSave() {
     muted: false,
     carsStolen: 0,
     missionsPlayed: 0,
+    // v2 stats: near misses threaded and the hottest heat ever reached.
+    nearMisses: 0,
+    bestWanted: 0,
   };
 }
 
@@ -28,6 +31,8 @@ export function loadSave() {
     if (typeof parsed.muted === 'boolean') save.muted = parsed.muted;
     if (typeof parsed.carsStolen === 'number') save.carsStolen = Math.floor(parsed.carsStolen);
     if (typeof parsed.missionsPlayed === 'number') save.missionsPlayed = Math.floor(parsed.missionsPlayed);
+    if (typeof parsed.nearMisses === 'number') save.nearMisses = Math.max(0, Math.floor(parsed.nearMisses));
+    if (typeof parsed.bestWanted === 'number') save.bestWanted = Math.max(0, Math.min(5, Math.floor(parsed.bestWanted)));
     return save;
   } catch {
     return defaultSave();

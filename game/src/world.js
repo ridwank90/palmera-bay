@@ -4,9 +4,9 @@
 // world owns the player and the drivable cars; everything else lives in its
 // own module and is driven from here through small `ctx` objects.
 
-import { CAR, MONEY, PLAYER, VIEW, WANTED, WORLD } from './config.js';
+import { CAR, MONEY, NEAR_MISS, PLAYER, VIEW, WANTED, WORLD } from './config.js';
 import { PLACES, pointOnSand, randomRoadPoint, resolveCircle } from './city.js';
-import { ACTION_ENTER_CAR, ACTION_JOB, ACTION_PUNCH, ACTION_RELOAD } from './input.js';
+import { ACTION_ENTER_CAR, ACTION_HORN, ACTION_JOB, ACTION_PUNCH, ACTION_RELOAD } from './input.js';
 import { createCombat } from './combat.js';
 import { createTraffic } from './traffic.js';
 import { createPolice } from './police.js';
@@ -67,6 +67,11 @@ export function createWorld(random, city, audio, save) {
     toastKind: 'info',
     saveTimer: 0,
     time: 0,
+    nearMisses: 0,
+    // Near-miss bookkeeping: cars already credited this pass, and whether
+    // the player was on the sand last step (for the beach splash sound).
+    nearMissed: new Set(),
+    wasOnSand: false,
   };
 
   function toast(text, kind = 'info', seconds = 3) {
@@ -137,6 +142,8 @@ export function createWorld(random, city, audio, save) {
     save.missionsDone = [...missions.done];
     save.carsStolen = state.carsStolen;
     save.missionsPlayed = missions.done.size;
+    save.nearMisses = state.nearMisses || 0;
+    save.bestWanted = Math.max(save.bestWanted || 0, police.wanted);
     storeSave(save);
   }
 
@@ -258,6 +265,13 @@ export function createWorld(random, city, audio, save) {
       player.aimAngle = Math.atan2(worldY - player.y, worldX - player.x);
       player.angle = player.aimAngle;
     }
+    // Stepping onto the wet sand at the water's edge splashes, once per visit.
+    const onSand = pointOnSand(player.x, player.y);
+    if (onSand && !state.wasOnSand) {
+      audio.splash();
+      particles.splash(player.x, player.y + 10, 4);
+    }
+    state.wasOnSand = onSand;
     // Punch cooldown and the shooting cooldown tick down here.
     player.punchTimer -= dt;
     player.shootTimer -= dt;
@@ -348,6 +362,10 @@ export function createWorld(random, city, audio, save) {
       particles.skid(car.x - forwardX * 14, car.y - forwardY * 14, car.angle);
       particles.dust(car.x, car.y, 1);
     }
+    // Spraying along the sand throws up spray behind the car.
+    if (pointOnSand(car.x, car.y) && sp > 260 && Math.random() < dt * 6) {
+      particles.splash(car.x - forwardX * 20, car.y - forwardY * 20, 3);
+    }
     car.speed = Math.hypot(car.vx, car.vy);
     player.x = car.x;
     player.y = car.y;
@@ -379,6 +397,22 @@ export function createWorld(random, city, audio, save) {
     }
     if (player.inCar && player.car) {
       const car = player.car;
+      // Near miss: threading past a traffic car at speed, just outside the
+      // scrape distance, pays a little cash (once per car per pass).
+      if (car.speed > NEAR_MISS.minSpeed) {
+        for (const t of traffic.cars) {
+          if (!t.active) continue;
+          const d = Math.hypot(t.x - car.x, t.y - car.y);
+          if (d > NEAR_MISS.minGap && d < NEAR_MISS.maxGap && !state.nearMissed.has(t)) {
+            state.nearMissed.add(t);
+            state.nearMisses += 1;
+            addMoney(NEAR_MISS.bonus);
+            particles.floatText(car.x, car.y - 30, `NEAR MISS +$${NEAR_MISS.bonus}`, '#f2c94c');
+            audio.whoosh();
+          }
+        }
+      }
+      for (const t of traffic.cars) if (!t.active) state.nearMissed.delete(t);
       // Traffic cars. A scrape is one hit per cooldown, not one per frame:
       // the push-apart separates the cars, and the damage waits its turn.
       for (const t of traffic.cars) {
@@ -513,10 +547,15 @@ export function createWorld(random, city, audio, save) {
       if (!missions.active && !missions.courier) {
         const job = missions.startCourier(missionCtx());
         if (job) {
-          toast('Courier job: pick up the package, then deliver it.', 'mission', 4);
+          toast(`Courier job: pick up ${job.packageLabel}, then deliver it.`, 'mission', 4);
           audio.click();
         }
       }
+    }
+    if (actions & ACTION_HORN) {
+      // H (horn): a honk that scatters the crowd, nothing more.
+      audio.horn();
+      traffic.scare(player.x, player.y, 220);
     }
 
     if (player.inCar) stepDriving(dt, input);
@@ -608,6 +647,7 @@ export function createWorld(random, city, audio, save) {
         addMoney(def.reward);
         audio.missionDone();
         audio.cash();
+        particles.confetti(player.x, player.y, 24);
         particles.floatText(player.x, player.y - 30, `+$${def.reward}`, '#f2c94c');
         toast(`Job complete: ${def.title} — +$${def.reward}`, 'good', 4);
         persist();

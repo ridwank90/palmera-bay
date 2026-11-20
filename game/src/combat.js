@@ -17,7 +17,7 @@ export function createCombat() {
   }
   const enemies = [];
   for (let i = 0; i < ENEMY_POOL; i++) {
-    enemies.push({ active: false, x: 0, y: 0, health: 0, angle: 0, shootTimer: 0, strafeDir: 1, strafeTimer: 0 });
+    enemies.push({ active: false, x: 0, y: 0, health: 0, maxHealth: 3, tough: false, angle: 0, shootTimer: 0, strafeDir: 1, strafeTimer: 0 });
   }
 
   function freeBullet() {
@@ -51,7 +51,10 @@ export function createCombat() {
     e.active = true;
     e.x = x;
     e.y = y;
-    e.health = 3;
+    // One in four gunmen is a tough one: more health, a bigger frame.
+    e.tough = Math.random() < 0.25;
+    e.maxHealth = e.tough ? 5 : 3;
+    e.health = e.maxHealth;
     e.angle = 0;
     e.shootTimer = 0.6 + Math.random() * 0.8;
     e.strafeDir = Math.random() < 0.5 ? -1 : 1;

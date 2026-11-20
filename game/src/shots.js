@@ -190,22 +190,26 @@ export function stageShot(name, world) {
   const input = makeShotInput();
   const S = world.stage;
   if (name === 'foot') {
-    // On foot downtown, walking toward Sol Plaza through traffic and crowds.
-    S.teleport(1010, 990, -Math.PI / 2);
-    forSeconds(world, input, 5, () => walkPilot(input, world, PLACES.plaza.x, PLACES.plaza.y));
+    // On foot east along the sand, below the boardwalk: sea and umbrellas
+    // below, the beach road, the shops and the crowd above.
+    S.teleport(500, 1710, -Math.PI / 2);
+    forSeconds(world, input, 5, () => walkPilot(input, world, 2300, 1710));
     return { screen: 'playing' };
   }
   if (name === 'mission') {
-    // The dock shootout: mid-stage, gunmen around, the player strafing around
-    // the docks and returning fire.
+    // The dock shootout: mid-stage, gunmen around, the player circling fast
+    // on the open dockside strip and returning fire. The strip (east of the
+    // avenue, north of the cross road, west of the bay) is the only ground
+    // near the docks with no traffic on it — the earlier slow arcs kept
+    // stalling Jax on the road, where the traffic ran him over.
     S.startMission('dockside', 1);
-    S.teleport(2220, 560, 0);
+    S.teleport(2280, 450, 0);
     let t = 0;
-    forSeconds(world, input, 6, () => {
+    forSeconds(world, input, 4, () => {
       t += STEP;
-      // Strafe in a slow circle around the docks so the gunmen can't pin Jax.
-      const ox = PLACES.docks.x + Math.cos(t * 0.6) * 90;
-      const oy = PLACES.docks.y + Math.sin(t * 0.6) * 90;
+      const a = t * 5.0;
+      const ox = 2300 + Math.cos(a) * 40;
+      const oy = 450 + Math.sin(a) * 40;
       walkPilot(input, world, ox, oy);
       const enemy = nearestEnemy(world);
       if (enemy) {
@@ -220,22 +224,26 @@ export function stageShot(name, world) {
     return { screen: 'playing' };
   }
   if (name === 'drive') {
-    // A calm cruise east along the beach road: palms, boardwalk, sea.
-    S.teleport(300, 1650, 0);
+    // A hot run east along the middle road: traffic, five stars, speed.
+    S.teleport(300, 900, 0);
     const car = world.driveCars[3];
-    S.placeCar(car, 300, 1650, 0);
+    S.placeCar(car, 300, 900, 0);
     S.enterCar(car);
     S.clearWanted();
-    forSeconds(world, input, 4.5, () => roadPilot(input, world, 2400, 1650));
+    S.addWanted(2);
+    forSeconds(world, input, 4, () => roadPilot(input, world, 2400, 900));
     return { screen: 'playing' };
   }
-  // Default and 'chase': the cover — a getaway at three stars, cops closing
-  // in, the hideout marker on the HUD and the minimap.
+  // Default and 'chase': the cover — a getaway at FIVE stars, the helicopter
+  // overhead, cops closing in, the hideout marker on the HUD and the minimap.
   S.teleport(600, 1250, 0);
   const car = world.driveCars[0];
   S.placeCar(car, 600, 1250, 0);
   S.enterCar(car);
   S.startMission('getaway', 1);
-  forSeconds(world, input, 8, () => roadPilot(input, world, PLACES.hideout.x, PLACES.hideout.y));
+  S.addWanted(2);
+  // Four seconds: the car is mid-straight north on the avenue at speed,
+  // before the turns and the ramming wear it down.
+  forSeconds(world, input, 4, () => roadPilot(input, world, PLACES.hideout.x, PLACES.hideout.y));
   return { screen: 'playing' };
 }

@@ -5,7 +5,17 @@
 // city. No drawing here — only data and the collision and road queries the
 // world, the traffic and the police drive on.
 import { BEACH, MARINA, PALETTE, ROADS, WORLD } from './config.js';
-import { pick } from './random.js';
+import { pick, range, shuffle } from './random.js';
+
+/** Shopfront names for the streets: every city gets its own mix, none repeated. */
+const SHOP_NAMES = [
+  'Taco Luna', 'Cafe Sol', 'Palmera Records', 'Donut Bay', 'Surf & Turf',
+  'Kicks & Co', 'Bait & Tackle', 'Neon Nails', 'Burger Bay', 'Flower Power',
+  'Game Zone', 'Laundromat 24', 'Mango Smoothies', 'Bay Books',
+];
+
+/** Rooftop looks: flat, a pool, a garden, or an air-con unit. */
+const ROOF_KINDS = ['flat', 'flat', 'flat', 'pool', 'garden', 'ac'];
 
 /** Named places the story uses: garage, chop shop, docks, bank, hideout. */
 export const PLACES = {
@@ -38,6 +48,11 @@ export function generateCity(random) {
   const buildings = [];
   const palms = [];
   const parks = PARK_BLOCKS.map((p) => ({ ...p }));
+  const shops = [];
+  const lamps = [];
+  const umbrellas = [];
+  const shopNames = shuffle(random, SHOP_NAMES);
+  let shopIndex = 0;
   const v = ROADS.vertical;
   const h = ROADS.horizontal;
   const half = ROADS.width / 2;
@@ -68,9 +83,37 @@ export function generateCity(random) {
           h: Math.min(bh, y1 - 6 - by),
           color: marina ? '#7a8a99' : pick(random, PALETTE.buildingRoof),
           height: marina ? 14 : 8 + random() * 22,
+          roof: pick(random, ROOF_KINDS),
         });
       }
+      // One shopfront per block at most, facing the street below it.
+      if (!marina && shopIndex < shopNames.length && random() < 0.55) {
+        const sw = 110 + random() * 60;
+        shops.push({
+          x: x0 + 20 + random() * Math.max(10, (x1 - x0) - sw - 40),
+          y: y1 - 26,
+          w: sw,
+          name: shopNames[shopIndex],
+          color: pick(random, PALETTE.shopAwning),
+        });
+        shopIndex += 1;
+      }
     }
+  }
+  // Streetlamps along the vertical roads, every 300 px.
+  for (const vx of v) {
+    for (let y = 140; y < BEACH.top; y += 300) {
+      lamps.push({ x: vx - half - 8, y });
+      lamps.push({ x: vx + half + 8, y: y + 150 });
+    }
+  }
+  // Beach umbrellas on the sand, with a towel beside each one.
+  for (let x = 160; x < WORLD.width - 160; x += 260) {
+    umbrellas.push({
+      x: x + range(random, -40, 40),
+      y: BEACH.top + range(random, 24, 120),
+      color: pick(random, PALETTE.umbrella),
+    });
   }
   // Palms along the beach road and the marina front.
   for (let x = 120; x < WORLD.width - 120; x += 130) {
@@ -85,7 +128,7 @@ export function generateCity(random) {
     { x: 2360, y: 480, w: 240, h: 26 },
     { x: 2360, y: 620, w: 180, h: 26 },
   ];
-  return { buildings, palms, parks, piers };
+  return { buildings, palms, parks, piers, shops, lamps, umbrellas };
 }
 
 /** True when the point is in the sea or the bay (cars and feet stay out). */

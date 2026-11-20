@@ -1,18 +1,20 @@
-// Palmera Bay — my gta6-01 entry (Node 22, standard library only). The game is
+// Palmera Bay v2 — my gta6-01 entry (Node 22, standard library only). The game is
 // this directory's game/ folder: plain static files a desktop browser loads
 // offline (game/index.html and its ES modules, no library, no network request),
 // and this program hands it in. It copies game/ and screenshots/ from beside
 // this file to /output and writes /output/dossier.json, the summary the judge
 // reads, with the vendored make.fun library. The game itself is an original
 // open-world crime game: Jax Moreno comes home to a sun-soaked coastal city,
-// steals cars, outruns the Palmera Bay PD at up to five wanted stars, and runs
-// a six-job story from his sister's garage to the Bay Job — on foot and by car,
-// with traffic, pedestrians, gunfights, cash to grab, courier jobs, a minimap,
-// synthesized music and sound, and a save in localStorage. The four
-// screenshots in screenshots/ are real frames of it running (the first by name
-// is the cover). Serve it locally with `node serve.ts`, then open
-// http://localhost:8080. Outside the grader's container, MAKEFUN_OUTPUT_DIR
-// stands in for /output:
+// steals cars, outruns the Palmera Bay PD at up to five wanted stars — a
+// police helicopter circles overhead at five stars — and runs a six-job story
+// from his sister's garage to the Bay Job, with near-miss bonuses, courier
+// streaks, taxi cabs and delivery vans in traffic, shopfronts, streetlamps
+// and beach umbrellas across a richer city, gunfights with tough crew
+// members, cash to grab, a minimap, a speedometer, synthesized music and
+// sound, and a save in localStorage. The four screenshots in screenshots/
+// are real frames of it running (the first by name is the cover). Serve it
+// locally with `node serve.ts`, then open http://localhost:8080. Outside the
+// grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
 
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
@@ -41,6 +43,10 @@ for (const shot of shotList) {
   const shotPath = join(out, 'screenshots', shot.name);
   if (!existsSync(shotPath)) throw new Error(`screenshot ${shot.name} is missing from the output`);
   if (statSync(shotPath).size > 262144) throw new Error(`screenshot ${shot.name} is over the 256 KiB cap`);
+  // A screenshot must really be a JPEG, not a renamed file: the first two
+  // bytes of a JPEG are FF D8.
+  const head = readFileSync(shotPath).subarray(0, 2);
+  if (head[0] !== 0xff || head[1] !== 0xd8) throw new Error(`screenshot ${shot.name} is not a JPEG`);
 }
 const gameFiles = readdirSync(join(out, 'game'), { recursive: true });
 console.log(`Palmera Bay: ${gameFiles.length} files under game/, ${shotList.length} screenshots, cover ${shotList[0].name}`);

@@ -17,12 +17,12 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-function drawCarShape(ctx, x, y, angle, color, sporty, wrecked) {
+function drawCarShape(ctx, x, y, angle, color, sporty, wrecked, taxi = false, van = false) {
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(angle);
-  const len = sporty ? CAR.length + 6 : CAR.length;
-  const wid = CAR.width;
+  const len = van ? CAR.length + 16 : sporty ? CAR.length + 6 : CAR.length;
+  const wid = van ? CAR.width + 4 : CAR.width;
   ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
   roundRect(ctx, -len / 2 + 3, -wid / 2 + 4, len, wid, 8);
   ctx.fill();
@@ -32,12 +32,26 @@ function drawCarShape(ctx, x, y, angle, color, sporty, wrecked) {
   ctx.strokeStyle = 'rgba(0,0,0,0.5)';
   ctx.lineWidth = 1.5;
   ctx.stroke();
+  // Roof panel, slightly darker than the body.
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  roundRect(ctx, -len * 0.18, -wid / 2 + 4, len * 0.36, wid - 8, 4);
+  ctx.fill();
   // Windshield and rear window.
   ctx.fillStyle = 'rgba(20, 30, 40, 0.85)';
   roundRect(ctx, len * 0.12, -wid / 2 + 3, len * 0.22, wid - 6, 3);
   ctx.fill();
   roundRect(ctx, -len * 0.34, -wid / 2 + 3, len * 0.16, wid - 6, 3);
   ctx.fill();
+  // A taxi gets its checkered band and roof sign; a sporty car, a spoiler.
+  if (taxi) {
+    ctx.fillStyle = PALETTE.taxiCheck;
+    for (let i = 0; i < 5; i++) ctx.fillRect(-len * 0.1 + i * 6, -wid / 2, 3, 3);
+    ctx.fillRect(-4, -wid / 2 - 6, 8, 5);
+  }
+  if (sporty) {
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(-len / 2 - 2, -wid / 2 - 2, 4, wid + 4);
+  }
   // Headlights.
   ctx.fillStyle = '#fff8c9';
   ctx.fillRect(len / 2 - 2, -wid / 2 + 2, 3, 4);
@@ -45,28 +59,39 @@ function drawCarShape(ctx, x, y, angle, color, sporty, wrecked) {
   ctx.restore();
 }
 
-function drawPersonShape(ctx, x, y, angle, shirt, isPlayer, isEnemy, health01) {
+function drawPersonShape(ctx, x, y, angle, shirt, isPlayer, isEnemy, health01, size = 11, hat = false, hatColor = '#888') {
   ctx.save();
   ctx.translate(x, y);
   // Shadow.
   ctx.fillStyle = 'rgba(0,0,0,0.3)';
   ctx.beginPath();
-  ctx.ellipse(0, 4, 11, 7, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 4, size, size * 0.64, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.rotate(angle);
   ctx.fillStyle = shirt;
   ctx.beginPath();
-  ctx.arc(0, 0, 11, 0, Math.PI * 2);
+  ctx.arc(0, 0, size, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = 'rgba(0,0,0,0.45)';
   ctx.lineWidth = 1.5;
   ctx.stroke();
+  // A hat for the sun — a brim and a dome, drawn before the facing nub.
+  if (hat) {
+    ctx.fillStyle = hatColor;
+    ctx.beginPath();
+    ctx.arc(0, 0, size + 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = shirt;
+    ctx.beginPath();
+    ctx.arc(0, 0, size - 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
   // The player gets a white ring, so Jax never blends into the crowd.
   if (isPlayer) {
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 2.5;
     ctx.beginPath();
-    ctx.arc(0, 0, 14, 0, Math.PI * 2);
+    ctx.arc(0, 0, size + 3, 0, Math.PI * 2);
     ctx.stroke();
   }
   // Facing nub: a gun for enemies, a cap brim for the player.
@@ -79,10 +104,11 @@ function drawPersonShape(ctx, x, y, angle, shirt, isPlayer, isEnemy, health01) {
   }
   ctx.restore();
   if (isEnemy && health01 !== undefined) {
+    const bw = size * 2;
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.fillRect(x - 12, y - 24, 24, 4);
+    ctx.fillRect(x - bw / 2, y - size - 13, bw, 4);
     ctx.fillStyle = health01 > 0.5 ? '#58d68d' : '#e5534b';
-    ctx.fillRect(x - 12, y - 24, 24 * health01, 4);
+    ctx.fillRect(x - bw / 2, y - size - 13, bw * health01, 4);
   }
 }
 
@@ -111,6 +137,47 @@ export function createRenderer(canvas) {
     ctx.fillRect(2350, 0, WORLD.width - 2350, MARINA.y1);
     ctx.fillStyle = PALETTE.waterDeep;
     ctx.fillRect(2350, 0, 12, MARINA.y1);
+    // Animated wave lines on the sea and the bay, drifting with the clock.
+    const waveT = world.state.time;
+    ctx.strokeStyle = PALETTE.waterShine;
+    ctx.lineWidth = 2;
+    for (let wy = BEACH.waterTop + 8; wy < WORLD.height - 4; wy += 18) {
+      ctx.beginPath();
+      for (let wx = 0; wx <= WORLD.width; wx += 40) {
+        const yy = wy + Math.sin(wx * 0.012 + waveT * 1.4 + wy * 0.05) * 3;
+        if (wx === 0) ctx.moveTo(wx, yy);
+        else ctx.lineTo(wx, yy);
+      }
+      ctx.stroke();
+    }
+    for (let wx = 2362; wx < WORLD.width - 4; wx += 18) {
+      ctx.beginPath();
+      for (let wy = 0; wy <= MARINA.y1; wy += 40) {
+        const xx = wx + Math.sin(wy * 0.012 + waveT * 1.2 + wx * 0.05) * 3;
+        if (wy === 0) ctx.moveTo(xx, wy);
+        else ctx.lineTo(xx, wy);
+      }
+      ctx.stroke();
+    }
+    // Beach umbrellas with a towel beside each one.
+    for (const u of city.umbrellas) {
+      ctx.fillStyle = '#f1faee';
+      ctx.fillRect(u.x - 14, u.y + 12, 12, 20);
+      ctx.strokeStyle = '#8a6b4a';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(u.x, u.y);
+      ctx.lineTo(u.x, u.y - 16);
+      ctx.stroke();
+      ctx.fillStyle = u.color;
+      ctx.beginPath();
+      ctx.arc(u.x, u.y - 16, 15, Math.PI, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
     // Boardwalk along the beach.
     ctx.fillStyle = '#c9a06c';
     ctx.fillRect(0, BEACH.top - 18, WORLD.width, 18);
@@ -129,6 +196,29 @@ export function createRenderer(canvas) {
     }
     for (const hy of ROADS.horizontal) {
       for (let x = 20; x < WORLD.width; x += 56) ctx.fillRect(x, hy - 2, 28, 4);
+    }
+    // Crosswalks: zebra stripes across every intersection.
+    ctx.fillStyle = PALETTE.crosswalk;
+    for (const vx of ROADS.vertical) {
+      for (const hy of ROADS.horizontal) {
+        for (let i = -3; i <= 3; i++) {
+          ctx.fillRect(vx - 40 + i * 12, hy - 46, 6, 14);
+          ctx.fillRect(vx - 40 + i * 12, hy + 32, 6, 14);
+        }
+      }
+    }
+    // Streetlamps along the vertical roads.
+    for (const lamp of city.lamps) {
+      ctx.strokeStyle = '#2c2f38';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(lamp.x, lamp.y);
+      ctx.lineTo(lamp.x, lamp.y - 16);
+      ctx.stroke();
+      ctx.fillStyle = '#ffe9a3';
+      ctx.beginPath();
+      ctx.arc(lamp.x, lamp.y - 18, 4, 0, Math.PI * 2);
+      ctx.fill();
     }
     // Docks: wooden piers into the bay, with moored boats.
     for (const pier of city.piers) {
@@ -152,7 +242,7 @@ export function createRenderer(canvas) {
       ctx.fill();
       ctx.restore();
     }
-    // Buildings: shadow, roof, roof detail.
+    // Buildings: shadow, roof, roof detail — the sun hits the top and left edges.
     for (const b of city.buildings) {
       ctx.fillStyle = 'rgba(0,0,0,0.28)';
       ctx.fillRect(b.x + b.height * 0.4, b.y + b.height * 0.4, b.w, b.h);
@@ -163,9 +253,48 @@ export function createRenderer(canvas) {
       ctx.strokeRect(b.x, b.y, b.w, b.h);
       ctx.fillStyle = 'rgba(255,255,255,0.22)';
       ctx.fillRect(b.x + 8, b.y + 8, b.w - 16, Math.min(14, b.h / 4));
+      ctx.fillStyle = 'rgba(255,255,255,0.14)';
+      ctx.fillRect(b.x, b.y, b.w, 3);
+      ctx.fillRect(b.x, b.y, 3, b.h);
       ctx.fillStyle = 'rgba(0,0,0,0.25)';
       ctx.fillRect(b.x + b.w / 2 - 8, b.y + b.h - 12, 16, 12);
+      // Rooftop life: a pool, a garden, or an air-con unit.
+      if (b.roof === 'pool' && b.w > 60 && b.h > 50) {
+        ctx.fillStyle = '#3d7ea6';
+        roundRect(ctx, b.x + b.w / 2 - 18, b.y + b.h / 2 - 12, 36, 24, 6);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        roundRect(ctx, b.x + b.w / 2 - 14, b.y + b.h / 2 - 8, 28, 5, 2);
+        ctx.fill();
+      } else if (b.roof === 'garden') {
+        ctx.fillStyle = '#5d8a5a';
+        ctx.fillRect(b.x + 10, b.y + 10, Math.max(10, b.w - 20), Math.min(16, b.h - 20));
+        ctx.fillStyle = '#3f8f4f';
+        for (let gx = b.x + 16; gx < b.x + b.w - 12; gx += 14) ctx.fillRect(gx, b.y + 13, 5, 5);
+      } else if (b.roof === 'ac') {
+        ctx.fillStyle = '#8a8f98';
+        ctx.fillRect(b.x + b.w - 22, b.y + 10, 12, 12);
+        ctx.fillRect(b.x + 10, b.y + b.h - 22, 12, 12);
+      }
     }
+    // Shopfronts: a striped awning and the shop's name over the door.
+    for (const shop of city.shops) {
+      ctx.fillStyle = shop.color;
+      ctx.fillRect(shop.x, shop.y, shop.w, 10);
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      for (let sx = shop.x; sx < shop.x + shop.w; sx += 16) ctx.fillRect(sx, shop.y, 8, 10);
+      ctx.fillStyle = '#1a1a1a';
+      ctx.font = `bold 13px ${FONT}`;
+      ctx.textAlign = 'center';
+      ctx.fillText(shop.name, shop.x + shop.w / 2, shop.y - 6);
+      ctx.textAlign = 'left';
+    }
+    // Warm sun glow from the north-west, over the whole city.
+    const glow = ctx.createRadialGradient(200, 100, 100, 200, 100, 1600);
+    glow.addColorStop(0, PALETTE.sunGlow);
+    glow.addColorStop(1, 'rgba(255, 214, 130, 0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, WORLD.width, WORLD.height);
     // Palms.
     for (const palm of city.palms) {
       ctx.strokeStyle = PALETTE.palmTrunk;
@@ -284,6 +413,15 @@ export function createRenderer(canvas) {
     ctx.fillStyle = PALETTE.text;
     ctx.font = `bold 13px ${FONT}`;
     ctx.fillText(`JAX MORENO  •  HP ${Math.ceil(player.health)}`, 26, 88);
+    // Five stars means the helicopter is overhead — say so, in red.
+    if (world.police.heli && world.police.heli.active) {
+      ctx.fillStyle = 'rgba(120, 20, 20, 0.9)';
+      roundRect(ctx, 14, 104, 250, 26, 8);
+      ctx.fill();
+      ctx.fillStyle = '#ffd9d9';
+      ctx.font = `bold 12px ${FONT}`;
+      ctx.fillText('HELICOPTER OVERHEAD', 26, 122);
+    }
     // Top-right: cash and objective.
     const objective = world.objective;
     ctx.fillStyle = PALETTE.panel;
@@ -310,7 +448,7 @@ export function createRenderer(canvas) {
     }
     // Bottom-left: ammo / controls.
     ctx.fillStyle = PALETTE.panel;
-    roundRect(ctx, 14, VIEW.height - 64, 460, 50, 10);
+    roundRect(ctx, 14, VIEW.height - 64, 500, 50, 10);
     ctx.fill();
     ctx.strokeStyle = 'rgba(255,255,255,0.18)';
     ctx.stroke();
@@ -328,11 +466,25 @@ export function createRenderer(canvas) {
       ctx.fillText('CAR', 182, VIEW.height - 26);
     } else {
       ctx.fillText('WASD move  •  SHIFT run  •  E steal / start job', 26, VIEW.height - 44);
-      ctx.fillText('CLICK shoot  •  SPACE punch  •  R reload  •  T courier', 26, VIEW.height - 26);
+      ctx.fillText('CLICK shoot  •  SPACE punch  •  R reload  •  T courier  •  H horn', 26, VIEW.height - 26);
       ctx.fillStyle = PALETTE.gold;
       ctx.font = `bold 13px ${FONT}`;
       ctx.textAlign = 'right';
-      ctx.fillText(player.reloading ? 'RELOADING…' : `AMMO ${player.ammo}/${PLAYER.magSize}`, 462, VIEW.height - 44);
+      ctx.fillText(player.reloading ? 'RELOADING…' : `AMMO ${player.ammo}/${PLAYER.magSize}`, 502, VIEW.height - 44);
+      ctx.textAlign = 'left';
+    }
+    // Speedometer left of the minimap, while driving (above it the
+    // minimap's own label lives, so the two never overlap).
+    if (player.inCar && player.car) {
+      ctx.fillStyle = PALETTE.panel;
+      roundRect(ctx, VIEW.width - 216 - 212, MINIMAP.y - 44, 200, 32, 8);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+      ctx.stroke();
+      ctx.fillStyle = PALETTE.text;
+      ctx.font = `bold 16px ${FONT}`;
+      ctx.textAlign = 'right';
+      ctx.fillText(`${Math.round(player.car.speed * 0.12)} mph`, VIEW.width - 28 - 212, MINIMAP.y - 22);
       ctx.textAlign = 'left';
     }
     // Toast.
@@ -404,14 +556,15 @@ export function createRenderer(canvas) {
       'Steal cars. Lose the cops. Take the Bay Job.',
       '',
       'WASD move / drive  •  E steal a car or start a job  •  CLICK shoot',
-      'SPACE punch / handbrake  •  R reload  •  T courier job  •  P pause  •  M mute',
-      '',
+      'SPACE punch / handbrake  •  R reload  •  T courier  •  H horn  •  P pause  •  M mute',
+      'New: a police helicopter at five stars, near-miss bonuses, courier streaks.',
       'Click or press SPACE to start.',
     ]);
     ctx.textAlign = 'center';
     ctx.fillStyle = PALETTE.muted;
     ctx.font = `13px ${FONT}`;
-    ctx.fillText(`Save: $${world.state.money.toLocaleString('en-US')}  •  Jobs done: ${world.missions.done.size}/6`, VIEW.width / 2, VIEW.height / 2 + 150);
+    const bestStars = world.save.bestWanted > 0 ? '★'.repeat(world.save.bestWanted) + '☆'.repeat(5 - world.save.bestWanted) : '☆☆☆☆☆';
+    ctx.fillText(`Save: $${world.state.money.toLocaleString('en-US')}  •  Jobs done: ${world.missions.done.size}/6  •  Near misses: ${world.save.nearMisses || 0}  •  Hottest heat: ${bestStars}`, VIEW.width / 2, VIEW.height / 2 + 150);
     ctx.textAlign = 'left';
   }
 
@@ -466,7 +619,7 @@ export function createRenderer(canvas) {
     // Traffic cars, then drivable cars, then police.
     for (const car of world.traffic.cars) {
       if (!car.active) continue;
-      drawCarShape(ctx, car.x, car.y, car.angle, car.color, car.sporty, false);
+      drawCarShape(ctx, car.x, car.y, car.angle, car.color, car.sporty, false, car.taxi, car.van);
     }
     for (const car of world.driveCars) {
       if (!car.active) continue;
@@ -477,7 +630,7 @@ export function createRenderer(canvas) {
         ctx.arc(car.x, car.y, 34 + Math.sin(world.state.time * 5) * 3, 0, Math.PI * 2);
         ctx.stroke();
       }
-      drawCarShape(ctx, car.x, car.y, car.angle, car.color, car.sporty, car.wrecked);
+      drawCarShape(ctx, car.x, car.y, car.angle, car.color, car.sporty, car.wrecked, false, false);
       if (car.wrecked) {
         ctx.fillStyle = 'rgba(120,120,120,0.6)';
         ctx.beginPath();
@@ -487,7 +640,7 @@ export function createRenderer(canvas) {
     }
     for (const car of world.police.cars) {
       if (!car.active) continue;
-      drawCarShape(ctx, car.x, car.y, car.angle, PALETTE.policeCar, false, false);
+      drawCarShape(ctx, car.x, car.y, car.angle, PALETTE.policeCar, false, false, false, false);
       // Flashing light bar.
       const phase = Math.floor(world.state.time * 6 + car.lightTimer) % 2 === 0;
       ctx.fillStyle = phase ? PALETTE.policeLightA : PALETTE.policeLightB;
@@ -514,7 +667,7 @@ export function createRenderer(canvas) {
         drawPersonShape(ctx, 0, 0, 0, ped.color, false, false);
         ctx.restore();
       } else {
-        drawPersonShape(ctx, ped.x, ped.y, ped.angle, ped.color, false, false);
+        drawPersonShape(ctx, ped.x, ped.y, ped.angle, ped.color, false, false, undefined, 11, ped.hat, ped.hatColor);
       }
     }
     // Officers.
@@ -522,10 +675,10 @@ export function createRenderer(canvas) {
       if (!officer.active) continue;
       drawPersonShape(ctx, officer.x, officer.y, officer.angle, '#1a2a4a', false, false);
     }
-    // Enemies.
+    // Enemies — the tough ones are bigger, with a longer health bar.
     for (const e of world.combat.enemies) {
       if (!e.active) continue;
-      drawPersonShape(ctx, e.x, e.y, e.angle, PALETTE.enemy, false, true, e.health / 3);
+      drawPersonShape(ctx, e.x, e.y, e.angle, PALETTE.enemy, false, true, e.health / (e.maxHealth || 3), e.tough ? 13 : 11);
     }
     // Player on foot.
     if (!world.player.inCar) {
@@ -568,6 +721,48 @@ export function createRenderer(canvas) {
       ctx.textAlign = 'left';
     }
     ctx.globalAlpha = 1;
+    // The police helicopter, above everything: shadow, spotlight, rotor blur.
+    const heli = world.police.heli;
+    if (heli && heli.active) {
+      const hx = heli.x;
+      const hy = heli.y;
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+      ctx.beginPath();
+      ctx.ellipse(hx + 26, hy + 34, 26, 14, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.save();
+      ctx.translate(hx, hy);
+      ctx.rotate(heli.angle);
+      ctx.fillStyle = 'rgba(255, 240, 160, 0.10)';
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(420, -90);
+      ctx.lineTo(420, 90);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = PALETTE.heliBody;
+      roundRect(ctx, -26, -11, 52, 22, 9);
+      ctx.fill();
+      ctx.fillStyle = PALETTE.heliGlass;
+      roundRect(ctx, 8, -8, 14, 16, 5);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(-20, 0);
+      ctx.lineTo(20, 0);
+      ctx.stroke();
+      ctx.save();
+      ctx.rotate(heli.rotor);
+      ctx.strokeStyle = 'rgba(20, 20, 20, 0.55)';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(-44, 0);
+      ctx.lineTo(44, 0);
+      ctx.stroke();
+      ctx.restore();
+      ctx.restore();
+    }
     ctx.restore();
 
     // Screen-space layers.

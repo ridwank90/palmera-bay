@@ -5,6 +5,7 @@
 // enemies and the money; it calls back in through `ctx` when a stage needs
 // something spawned or a reward paid out.
 
+import { COURIER } from './config.js';
 import { PLACES } from './city.js';
 
 const MISSIONS = [
@@ -70,13 +71,21 @@ const MISSIONS = [
   },
 ];
 
-const COURIER_REWARD = 150;
-const COURIER_TIME = 90;
+const COURIER_REWARD = COURIER.baseReward;
+const COURIER_TIME = COURIER.time;
+
+/** What the courier is carrying this run — a little flavour, cycled in order. */
+const PACKAGE_LABELS = [
+  'tacos for Taco Luna', 'surfboards for Kai', 'records for Palmera Records',
+  'donuts for Donut Bay', 'flowers for Flower Power', 'books for Bay Books',
+];
 
 export function createMissions(doneIds = []) {
   const done = new Set(doneIds);
   let active = null; // { def, stageIndex, timer, killsAtStart }
-  let courier = null; // { stage, x, y, label, timer }
+  let courier = null; // { stage, x, y, label, timer, packageLabel }
+  let courierStreak = 0;
+  let packageIndex = 0;
 
   function nextMission() {
     for (const def of MISSIONS) if (!done.has(def.id)) return def;
@@ -141,7 +150,9 @@ export function createMissions(doneIds = []) {
   function startCourier(ctx) {
     if (active || courier) return null;
     const p = ctx.randomRoadPoint ? ctx.randomRoadPoint() : { x: 1000, y: 900 };
-    courier = { stage: 'pickup', x: p.x, y: p.y, label: 'Pickup', timer: COURIER_TIME };
+    const packageLabel = PACKAGE_LABELS[packageIndex % PACKAGE_LABELS.length];
+    packageIndex += 1;
+    courier = { stage: 'pickup', x: p.x, y: p.y, label: 'Pickup', timer: COURIER_TIME, packageLabel };
     return courier;
   }
 
@@ -172,6 +183,7 @@ export function createMissions(doneIds = []) {
       courier.timer -= dt;
       if (courier.timer <= 0) {
         courier = null;
+        courierStreak = 0;
         if (ctx.onCourierFailed) ctx.onCourierFailed();
         return;
       }
@@ -179,11 +191,14 @@ export function createMissions(doneIds = []) {
       if (d < 60) {
         if (courier.stage === 'pickup') {
           const drop = ctx.randomPlace ? ctx.randomPlace() : { x: 1400, y: 1250, label: 'Dropoff' };
-          courier = { stage: 'dropoff', x: drop.x, y: drop.y, label: drop.label, timer: courier.timer };
+          courier = { stage: 'dropoff', x: drop.x, y: drop.y, label: drop.label, timer: courier.timer, packageLabel: courier.packageLabel };
           if (ctx.onCourierPickup) ctx.onCourierPickup();
         } else {
+          // Streak bonus: each clean delivery in a row pays a little more.
+          const reward = COURIER_REWARD + COURIER.streakBonus * Math.min(courierStreak, COURIER.streakMax);
+          courierStreak += 1;
           courier = null;
-          if (ctx.onCourierComplete) ctx.onCourierComplete(COURIER_REWARD);
+          if (ctx.onCourierComplete) ctx.onCourierComplete(reward);
         }
       }
     }
@@ -206,12 +221,12 @@ export function createMissions(doneIds = []) {
     }
     if (courier) {
       return {
-        text: courier.stage === 'pickup' ? 'Courier: pick up the package' : 'Courier: deliver the package',
+        text: courier.stage === 'pickup' ? `Courier: pick up ${courier.packageLabel}` : `Courier: deliver ${courier.packageLabel}`,
         x: courier.x,
         y: courier.y,
         label: courier.label,
         timer: Math.max(0, Math.ceil(courier.timer)),
-        missionTitle: 'Courier Job',
+        missionTitle: courierStreak > 0 ? `Courier Job — streak x${courierStreak}` : 'Courier Job',
         stageIndex: courier.stage === 'pickup' ? 1 : 2,
         stageCount: 2,
       };

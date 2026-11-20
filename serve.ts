@@ -65,7 +65,13 @@ createServer((request, response) => {
     'content-type': MIME[extname(file).toLowerCase()] ?? 'application/octet-stream',
     'content-length': size,
     'cache-control': 'no-store',
+    // A local dev server, but the headers cost nothing: no sniffing, no framing.
+    'x-content-type-options': 'nosniff',
+    'x-frame-options': 'SAMEORIGIN',
+    server: 'palmera-bay',
   });
+  // One log line per request, so a broken asset shows up in the terminal.
+  console.log(`${request.method} ${pathname} -> 200 (${size} bytes)`);
   createReadStream(file).pipe(response);
 }).listen(port, '127.0.0.1', () => {
   console.log(`game/ is on http://localhost:${port}`);

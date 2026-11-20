@@ -55,6 +55,28 @@ export function createParticles() {
     }
   }
 
+  /** A burst of coloured confetti for a job well done. */
+  function confetti(x, y, n = 24) {
+    const colors = ['#f2c94c', '#e5534b', '#2ec4b6', '#7a9cc6', '#e07a5f'];
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const s = 60 + Math.random() * 180;
+      spawn(x, y, Math.cos(a) * s, Math.sin(a) * s - 60,
+        0.7 + Math.random() * 0.6, 3 + Math.random() * 3, colors[i % colors.length], 0, 260);
+    }
+  }
+
+  /** Blue-white spray where a car tears along the sand. */
+  function splash(x, y, n = 5) {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const s = 40 + Math.random() * 120;
+      spawn(x + (Math.random() - 0.5) * 20, y + (Math.random() - 0.5) * 10,
+        Math.cos(a) * s, Math.sin(a) * s - 40,
+        0.3 + Math.random() * 0.3, 2 + Math.random() * 3, 'rgba(190, 230, 240, 0.8)', 0, 420);
+    }
+  }
+
   function skid(x, y, angle) {
     skids.push({ x, y, angle, life: 4 });
     if (skids.length > 220) skids.shift();
@@ -87,5 +109,5 @@ export function createParticles() {
     }
   }
 
-  return { spawn, smoke, sparks, muzzle, dust, skid, floatText, step, pool, skids, floats };
+  return { spawn, smoke, sparks, muzzle, dust, confetti, splash, skid, floatText, step, pool, skids, floats };
 }

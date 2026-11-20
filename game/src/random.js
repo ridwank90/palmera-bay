@@ -16,3 +16,20 @@ export function createRandom(seed) {
 export function pick(random, array) {
   return array[Math.floor(random() * array.length)];
 }
+
+/** A number in [min, max) from the seeded random. */
+export function range(random, min, max) {
+  return min + random() * (max - min);
+}
+
+/** A shuffled copy of an array (Fisher-Yates), so names never repeat in a city. */
+export function shuffle(random, array) {
+  const out = array.slice();
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    const tmp = out[i];
+    out[i] = out[j];
+    out[j] = tmp;
+  }
+  return out;
+}

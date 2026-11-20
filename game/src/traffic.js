@@ -19,11 +19,11 @@ function roadEndX(y) {
 export function createTraffic(random) {
   const cars = [];
   for (let i = 0; i < TRAFFIC.cars; i++) {
-    cars.push({ active: false, x: 0, y: 0, angle: 0, speed: 0, color: '#888', axis: 'v', dir: 1, road: 0, lastCross: -1, sporty: false });
+    cars.push({ active: false, x: 0, y: 0, angle: 0, speed: 0, color: '#888', axis: 'v', dir: 1, road: 0, lastCross: -1, sporty: false, taxi: false, van: false });
   }
   const peds = [];
   for (let i = 0; i < TRAFFIC.peds; i++) {
-    peds.push({ active: false, x: 0, y: 0, angle: 0, speed: 0, color: '#888', tx: 0, ty: 0, fleeTimer: 0, downTimer: 0 });
+    peds.push({ active: false, x: 0, y: 0, angle: 0, speed: 0, color: '#888', tx: 0, ty: 0, fleeTimer: 0, downTimer: 0, hat: false, hatColor: '#888' });
   }
 
   function laneOffset(axis, dir) {
@@ -54,6 +54,11 @@ export function createTraffic(random) {
     car.speed = TRAFFIC.carSpeed * (0.85 + random() * 0.3);
     car.color = pick(random, CAR_COLORS);
     car.sporty = random() < 0.2;
+    // One in ten cars is a yellow cab, one in eight a slow delivery van.
+    car.taxi = random() < 0.1;
+    car.van = !car.sporty && random() < 0.12;
+    if (car.taxi) car.color = PALETTE.taxiYellow;
+    if (car.van) car.speed *= 0.8;
     if (car.sporty) car.speed *= 1.25;
     car.lastCross = -1;
     car.active = true;
@@ -86,6 +91,9 @@ export function createTraffic(random) {
       ped.x = x; ped.y = y;
       ped.color = pick(random, PALETTE.pedShirt);
       ped.speed = TRAFFIC.pedSpeed * (0.8 + random() * 0.5);
+      // A third of the crowd wears a hat — sun's out in Palmera Bay.
+      ped.hat = random() < 0.33;
+      ped.hatColor = pick(random, ['#f2c94c', '#e5534b', '#2e4057', '#f1faee']);
       ped.tx = x; ped.ty = y;
       ped.fleeTimer = 0;
       ped.downTimer = 0;

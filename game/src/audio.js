@@ -148,6 +148,27 @@ export function createAudio() {
     tone(700, 0.05, 'square', 0.12);
   }
 
+  /** A two-tone car horn (H): scares the crowd, never hurts anyone. */
+  function horn() {
+    if (!ensure()) return;
+    tone(370, 0.16, 'square', 0.14);
+    tone(466, 0.16, 'square', 0.14, 0.02);
+  }
+
+  /** The whoosh of threading past traffic at speed. */
+  function whoosh() {
+    if (!ensure()) return;
+    noise(0.22, 0.3, 2400, 0, 'bandpass');
+    tone(280, 0.2, 'sine', 0.18, 0, 900);
+  }
+
+  /** Feet (or tyres) hitting the wet sand at the water's edge. */
+  function splash() {
+    if (!ensure()) return;
+    noise(0.3, 0.3, 1200);
+    tone(220, 0.25, 'sine', 0.2, 0, 70);
+  }
+
   function engineStart() {
     if (!ensure() || engineOsc) return;
     engineOsc = ctx.createOscillator();
@@ -296,6 +317,7 @@ export function createAudio() {
   return {
     unlock, setMuted, isMuted,
     gunshot, punch, crash, pickup, cash, missionDone, missionFail, click,
+    horn, whoosh, splash,
     engineStart, engineSet, engineStop,
     sirenSet, sirenTick,
     musicStart, musicStop,

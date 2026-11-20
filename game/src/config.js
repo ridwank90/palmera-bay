@@ -47,7 +47,7 @@ export const CAR = {
   health: 150,
 };
 
-export const TRAFFIC = { cars: 14, peds: 26, carSpeed: 150, pedSpeed: 55 };
+export const TRAFFIC = { cars: 18, peds: 32, carSpeed: 150, pedSpeed: 55 };
 
 export const POLICE = {
   maxCars: 6,
@@ -57,6 +57,15 @@ export const POLICE = {
   officerSpeed: 300,
   spawnDistance: 700,
 };
+
+/** The police helicopter that circles at five stars: visual pressure only — it never shoots. */
+export const HELI = { speed: 260, follow: 1.1, leaveSpeed: 420 };
+
+/** Near-miss bonus: threading past traffic at speed pays a little cash. */
+export const NEAR_MISS = { minGap: 46, maxGap: 84, minSpeed: 300, bonus: 10 };
+
+/** Courier streak: consecutive deliveries without failing pay a growing bonus. */
+export const COURIER = { baseReward: 150, streakBonus: 25, streakMax: 4, time: 90 };
 
 export const WANTED = {
   max: 5,
@@ -98,6 +107,16 @@ export const PALETTE = {
   pedShirt: ['#e07a5f', '#81b29a', '#f2cc8f', '#6d9dc5', '#b5838d', '#e9c46a'],
   cash: '#f2c94c',
   marker: '#f2c94c',
+  // v2 visuals: warm sun, glittering water, shopfronts and street furniture.
+  sunGlow: 'rgba(255, 214, 130, 0.16)',
+  waterShine: 'rgba(255, 255, 255, 0.35)',
+  crosswalk: 'rgba(232, 228, 210, 0.85)',
+  taxiYellow: '#f2c94c',
+  taxiCheck: '#1a1a1a',
+  umbrella: ['#e5534b', '#2f6df6', '#f2c94c', '#7a9cc6', '#c65d7b'],
+  shopAwning: ['#d96c4f', '#2f6df6', '#3f8f4f', '#e0b34c', '#c65d7b'],
+  heliBody: '#2e4057',
+  heliGlass: '#9fc3d8',
   text: '#eef1f5',
   muted: '#aab3c0',
   panel: 'rgba(12, 18, 26, 0.78)',
@@ -124,4 +143,5 @@ export const KEYS = {
   confirm: ['Space', 'Enter'],
   mute: ['KeyM'],
   job: ['KeyT'],
+  horn: ['KeyH'],
 };
