@@ -28,6 +28,9 @@ export const PLACES = {
   hospital: { name: 'Palmera General', x: 1410, y: 210, label: 'Hospital' },
   alley: { name: 'Back Alley', x: 1010, y: 990, label: 'Alley' },
   plaza: { name: 'Sol Plaza', x: 1010, y: 560, label: 'Plaza' },
+  // v3 places: the smuggling drops and the race route run through them.
+  casino: { name: 'Palmera Casino', x: 2200, y: 1250, label: 'Casino' },
+  park: { name: 'Palm Court Park', x: 800, y: 1075, label: 'Park' },
 };
 
 const PARK_BLOCKS = [

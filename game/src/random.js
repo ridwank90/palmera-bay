@@ -33,3 +33,8 @@ export function shuffle(random, array) {
   }
   return out;
 }
+
+/** Clamp a value into [min, max] — the race rival steers with this. */
+export function clamp(value, min, max) {
+  return value < min ? min : value > max ? max : value;
+}

@@ -47,6 +47,24 @@ export const CAR = {
   health: 150,
 };
 
+/** Weapons: the pistol Jax starts with, and the SMG found in weapon crates. */
+export const WEAPONS = {
+  pistol: { name: 'Pistol', damage: 34, cooldown: 0.17, mag: 12 },
+  smg: { name: 'SMG', damage: 20, cooldown: 0.08, mag: 30 },
+};
+
+/** Weapon crates: fixed spots, one SMG each, restocked after a while. */
+export const WEAPON_CRATES = { respawn: 45 };
+
+/** Garage repair: full car health for cash, only at Moreno Motors (key F). */
+export const REPAIR = { cost: 50, radius: 110 };
+
+/** Police roadblocks: at three stars and up the PD seals an intersection ahead. */
+export const ROADBLOCK = { minWanted: 3, cars: 2, duration: 25, cooldown: 20, triggerRange: 220 };
+
+/** The Neon Grand Prix: Rico's rival car, beatable but quick. */
+export const RIVAL = { maxSpeed: 490, accel: 380, chaseRange: 90 };
+
 export const TRAFFIC = { cars: 18, peds: 32, carSpeed: 150, pedSpeed: 55 };
 
 export const POLICE = {
@@ -144,4 +162,5 @@ export const KEYS = {
   mute: ['KeyM'],
   job: ['KeyT'],
   horn: ['KeyH'],
+  repair: ['KeyF'],
 };

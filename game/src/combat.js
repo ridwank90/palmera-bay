@@ -62,6 +62,22 @@ export function createCombat() {
     return e;
   }
 
+  /**
+   * A wave of gunmen around (x, y) for a hold-the-line stage: they land in a
+   * loose ring, never on top of the player, and the last one in is the tough one.
+   */
+  function spawnWave(x, y, n) {
+    let spawned = 0;
+    for (let i = 0; i < n; i++) {
+      const a = (i / Math.max(1, n)) * Math.PI * 2 + Math.random() * 0.8;
+      const r = 120 + Math.random() * 90;
+      const e = spawnEnemy(x + Math.cos(a) * r, y + Math.sin(a) * r);
+      if (!e) break;
+      spawned += 1;
+    }
+    return spawned;
+  }
+
   function clearEnemies() {
     for (const e of enemies) e.active = false;
     for (const b of bullets) b.active = false;
@@ -172,5 +188,5 @@ export function createCombat() {
     return kills;
   }
 
-  return { bullets, enemies, fireBullet, spawnEnemy, clearEnemies, aliveEnemies, punch, step };
+  return { bullets, enemies, fireBullet, spawnEnemy, spawnWave, clearEnemies, aliveEnemies, punch, step };
 }

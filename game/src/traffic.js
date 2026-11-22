@@ -19,7 +19,7 @@ function roadEndX(y) {
 export function createTraffic(random) {
   const cars = [];
   for (let i = 0; i < TRAFFIC.cars; i++) {
-    cars.push({ active: false, x: 0, y: 0, angle: 0, speed: 0, color: '#888', axis: 'v', dir: 1, road: 0, lastCross: -1, sporty: false, taxi: false, van: false });
+    cars.push({ active: false, x: 0, y: 0, angle: 0, speed: 0, color: '#888', axis: 'v', dir: 1, road: 0, lastCross: -1, sporty: false, taxi: false, van: false, pulledOver: false, pullTimer: 0 });
   }
   const peds = [];
   for (let i = 0; i < TRAFFIC.peds; i++) {
@@ -61,6 +61,8 @@ export function createTraffic(random) {
     if (car.van) car.speed *= 0.8;
     if (car.sporty) car.speed *= 1.25;
     car.lastCross = -1;
+    car.pulledOver = false;
+    car.pullTimer = 0;
     car.active = true;
   }
 
@@ -126,6 +128,15 @@ export function createTraffic(random) {
 
   function stepCar(car, dt, ctx) {
     if (!car.active) return;
+    // A honk from the player scares the car ahead into pulling over: it
+    // drifts to the side of the road and stops until the player is gone.
+    if (car.pulledOver) {
+      car.pullTimer -= dt;
+      if (car.pullTimer <= 0 || Math.hypot(car.x - ctx.playerX, car.y - ctx.playerY) > 500) {
+        car.pulledOver = false;
+      }
+      return;
+    }
     // Slow for the car ahead on the same road.
     let targetSpeed = car.speed;
     for (const other of cars) {
@@ -243,6 +254,30 @@ export function createTraffic(random) {
   function step(dt, ctx) {
     for (const car of cars) stepCar(car, dt, ctx);
     for (const ped of peds) stepPed(ped, dt, ctx);
+    // The horn: the nearest traffic car ahead of the player pulls over.
+    if (ctx.honk) {
+      let best = null;
+      let bestD = 320;
+      for (const car of cars) {
+        if (!car.active || car.pulledOver) continue;
+        const dx = car.x - ctx.playerX;
+        const dy = car.y - ctx.playerY;
+        const d = Math.hypot(dx, dy);
+        if (d > bestD) continue;
+        const fx = ctx.playerInCar && ctx.playerCar ? Math.cos(ctx.playerCar.angle) : Math.cos(ctx.playerAngle || 0);
+        const fy = ctx.playerInCar && ctx.playerCar ? Math.sin(ctx.playerCar.angle) : Math.sin(ctx.playerAngle || 0);
+        if ((dx * fx + dy * fy) / Math.max(1, d) < 0.4) continue;
+        best = car;
+        bestD = d;
+      }
+      if (best) {
+        best.pulledOver = true;
+        best.pullTimer = 6;
+        // Drift to the side of the road it is on, then stop there.
+        if (best.axis === 'v') best.x += (best.x < ROADS.vertical[best.road] ? -1 : 1) * 26;
+        else best.y += (best.y < ROADS.horizontal[best.road] ? -1 : 1) * 26;
+      }
+    }
   }
 
   return { cars, peds, populate, spawnCarNear, spawnPedNear, scare, step, laneOffset };

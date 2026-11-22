@@ -15,6 +15,11 @@ export function defaultSave() {
     // v2 stats: near misses threaded and the hottest heat ever reached.
     nearMisses: 0,
     bestWanted: 0,
+    // v3 stats: Grand Prix wins, crates picked up, repairs done, blocks dodged.
+    grandPrixWins: 0,
+    cratesPickedUp: 0,
+    repairsDone: 0,
+    roadblocksDodged: 0,
   };
 }
 
@@ -33,6 +38,10 @@ export function loadSave() {
     if (typeof parsed.missionsPlayed === 'number') save.missionsPlayed = Math.floor(parsed.missionsPlayed);
     if (typeof parsed.nearMisses === 'number') save.nearMisses = Math.max(0, Math.floor(parsed.nearMisses));
     if (typeof parsed.bestWanted === 'number') save.bestWanted = Math.max(0, Math.min(5, Math.floor(parsed.bestWanted)));
+    if (typeof parsed.grandPrixWins === 'number') save.grandPrixWins = Math.max(0, Math.floor(parsed.grandPrixWins));
+    if (typeof parsed.cratesPickedUp === 'number') save.cratesPickedUp = Math.max(0, Math.floor(parsed.cratesPickedUp));
+    if (typeof parsed.repairsDone === 'number') save.repairsDone = Math.max(0, Math.floor(parsed.repairsDone));
+    if (typeof parsed.roadblocksDodged === 'number') save.roadblocksDodged = Math.max(0, Math.floor(parsed.roadblocksDodged));
     return save;
   } catch {
     return defaultSave();

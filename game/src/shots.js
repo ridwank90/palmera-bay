@@ -1,9 +1,9 @@
-// The screenshot scenes behind ?shot=chase|foot|mission|drive. Each one sets
-// the real world up — teleport the player, put him in a car, start a mission
-// mid-stage, raise the wanted level — then plays the real rules forward for a
-// fixed number of steps, steered by a simple autopilot that follows the roads
-// toward the objective. The frame is what a short game really looks like, and
-// the same seed always stages the same frame.
+// The screenshot scenes behind ?shot=chase|foot|mission|drive|race|vault.
+// Each one sets the real world up — teleport the player, put him in a car,
+// start a mission mid-stage, raise the wanted level — then plays the real
+// rules forward for a fixed number of steps, steered by a simple autopilot
+// that follows the roads toward the objective. The frame is what a short
+// game really looks like, and the same seed always stages the same frame.
 
 import { ROADS, STEP } from './config.js';
 import { PLACES } from './city.js';
@@ -49,8 +49,9 @@ function steerToward(input, fromX, fromY, fromAngle, toX, toY) {
  * Drive the player's car along the roads toward (tx, ty): aim at a point
  * ahead on the current road's centre line, and at an intersection pick the
  * turn that gets closest to the target (never a U-turn, never into the bay).
+ * Exported so the play-test harness can drive the same roads as the shots.
  */
-function roadPilot(input, world, tx, ty) {
+export function roadPilot(input, world, tx, ty) {
   const car = world.player.car;
   if (!car) {
     // No car, no driving: let go of the keys instead of walking off.
@@ -69,25 +70,34 @@ function roadPilot(input, world, tx, ty) {
   const dirY = Math.sin(car.angle) >= 0 ? 1 : -1;
   let aimX;
   let aimY;
+  // Whether the next intersection is a turn (not straight on), and how far
+  // away it is. The turn choice is read from 420 units out — from full speed
+  // the car needs ~400 units to slow to a cornering speed — but the aim only
+  // swings onto the turn inside 130, so the car holds its line until then.
+  let turning = false;
+  let distToCross = Infinity;
   if (horizontal) {
     // Next intersection ahead on this road.
     const nextV = vRoads.filter((vx) => (vx - car.x) * dirX > 0).sort((a, b) => Math.abs(a - car.x) - Math.abs(b - car.x))[0];
-    const distToCross = nextV === undefined ? Infinity : Math.abs(nextV - car.x);
-    if (nextV !== undefined && distToCross < 130) {
-      // Choose the turn: straight, or up/down the cross road — whichever
-      // lands closest to the target, without reversing or driving into water.
-      const options = [
-        { x: nextV + dirX * 300, y: onH, ok: true },
-        { x: nextV, y: onH - 300, ok: onH - 300 > 40 },
-        { x: nextV, y: onH + 300, ok: onH + 300 < 1680 },
-      ];
-      let best = options[0];
+    distToCross = nextV === undefined ? Infinity : Math.abs(nextV - car.x);
+    // Choose the turn: straight, or up/down the cross road — whichever
+    // lands closest to the target, without reversing or driving into water.
+    const options = nextV === undefined ? null : [
+      { x: nextV + dirX * 300, y: onH, ok: true },
+      { x: nextV, y: onH - 300, ok: onH - 300 > 40 },
+      { x: nextV, y: onH + 300, ok: onH + 300 < 1680 },
+    ];
+    let best = options ? options[0] : null;
+    if (options) {
       let bestD = Infinity;
       for (const opt of options) {
         if (!opt.ok) continue;
         const d = Math.hypot(opt.x - tx, opt.y - ty);
         if (d < bestD) { bestD = d; best = opt; }
       }
+      turning = best !== options[0];
+    }
+    if (nextV !== undefined && distToCross < 130) {
       aimX = best.x;
       aimY = best.y;
     } else {
@@ -96,20 +106,23 @@ function roadPilot(input, world, tx, ty) {
     }
   } else {
     const nextH = hRoads.filter((hy) => (hy - car.y) * dirY > 0).sort((a, b) => Math.abs(a - car.y) - Math.abs(b - car.y))[0];
-    const distToCross = nextH === undefined ? Infinity : Math.abs(nextH - car.y);
-    if (nextH !== undefined && distToCross < 130) {
-      const options = [
-        { x: onV, y: nextH + dirY * 300, ok: nextH + dirY * 300 < 1680 },
-        { x: onV - 300, y: nextH, ok: onV - 300 > 40 },
-        { x: onV + 300, y: nextH, ok: !(nextH < 760 && onV + 300 > 2340) },
-      ];
-      let best = options[0];
+    distToCross = nextH === undefined ? Infinity : Math.abs(nextH - car.y);
+    const options = nextH === undefined ? null : [
+      { x: onV, y: nextH + dirY * 300, ok: nextH + dirY * 300 < 1680 },
+      { x: onV - 300, y: nextH, ok: onV - 300 > 40 },
+      { x: onV + 300, y: nextH, ok: !(nextH < 760 && onV + 300 > 2340) },
+    ];
+    let best = options ? options[0] : null;
+    if (options) {
       let bestD = Infinity;
       for (const opt of options) {
         if (!opt.ok) continue;
         const d = Math.hypot(opt.x - tx, opt.y - ty);
         if (d < bestD) { bestD = d; best = opt; }
       }
+      turning = best !== options[0];
+    }
+    if (nextH !== undefined && distToCross < 130) {
       aimX = best.x;
       aimY = best.y;
     } else {
@@ -118,10 +131,22 @@ function roadPilot(input, world, tx, ty) {
     }
   }
   const diff = steerToward(input, car.x, car.y, car.angle, aimX, aimY);
-  // A sharp turn at speed ends in a wall: brake for it, then power out.
-  if (Math.abs(diff) > 0.6) {
-    input.keys.up = false;
-    input.keys.down = true;
+  // Brake early for a turn, then power out of it; a sharp turn at speed
+  // still ends in a wall, so the early brake is what makes corners work.
+  // But never brake below a cornering speed: steering authority scales with
+  // speed, so a car crawling at 30 cannot turn at all and gets wedged. And
+  // once slowed, HOLD that speed through the corner — throttling back up
+  // before the heading settles just arrives at the corner too fast again.
+  const cornering = turning && distToCross < 420;
+  if (cornering || Math.abs(diff) > 0.6) {
+    if (car.speed > 220) {
+      input.keys.up = false;
+      input.keys.down = true;
+    } else {
+      // At a cornering speed already: coast, so the speed holds through the turn.
+      input.keys.up = false;
+      input.keys.down = false;
+    }
   } else {
     input.keys.up = true;
     input.keys.down = false;
@@ -183,12 +208,52 @@ function forSeconds(world, input, seconds, update) {
 }
 
 /**
- * Set `world` to the named scene and return the mode to draw. The four scenes
- * are the four screenshots: chase (cover), foot, mission, drive.
+ * Set `world` to the named scene and return the mode to draw. The six scenes
+ * are the four screenshots: chase (cover), race, vault, drive.
  */
 export function stageShot(name, world) {
   const input = makeShotInput();
   const S = world.stage;
+  if (name === 'race') {
+    // The Neon Grand Prix: the race car and Rico's red rival side by side
+    // at Sol Plaza, then both tearing east toward the first checkpoint.
+    S.startMission('grandprix', 1);
+    S.teleport(1040, 590, 0);
+    // The sporty blue car (driveCars[1]): it stands out on the asphalt and
+    // its top speed is what makes the race winnable against Rico.
+    const raceCar = world.driveCars[1];
+    S.placeCar(raceCar, 1040, 590, 0);
+    S.enterCar(raceCar);
+    // Three seconds: both cars are mid-straight east, still side by side and
+    // well inside the camera's reach — five seconds runs them into the east
+    // edge, where the clamped camera pushes them off the frame.
+    forSeconds(world, input, 3, () => roadPilot(input, world, 2200, 550));
+    return { screen: 'playing' };
+  }
+  if (name === 'vault') {
+    // The Vault: five guards around Bay Trust Bank, the player circling
+    // on foot and returning fire — the shootout that opens the big heist.
+    S.startMission('vault', 1);
+    S.teleport(PLACES.bank.x + 60, PLACES.bank.y + 60, 0);
+    let t = 0;
+    forSeconds(world, input, 4, () => {
+      t += STEP;
+      const a = t * 5.0;
+      const ox = PLACES.bank.x + 60 + Math.cos(a) * 40;
+      const oy = PLACES.bank.y + 60 + Math.sin(a) * 40;
+      walkPilot(input, world, ox, oy);
+      const enemy = nearestEnemy(world);
+      if (enemy) {
+        input.setMouse({
+          x: enemy.x - world.camera.x + 640,
+          y: enemy.y - world.camera.y + 360,
+          down: true,
+          seen: true,
+        });
+      }
+    });
+    return { screen: 'playing' };
+  }
   if (name === 'foot') {
     // On foot east along the sand, below the boardwalk: sea and umbrellas
     // below, the beach road, the shops and the crowd above.

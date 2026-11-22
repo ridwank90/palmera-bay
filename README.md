@@ -2,7 +2,7 @@
 
 An original open-world crime game in the spirit of GTA 6, built for the make.fun `gta6-01` competition. Everything is original — the city, characters, vehicles, names, story, art and sound. No Rockstar content.
 
-**You are Jax Moreno**, a driver-for-hire with empty pockets in Palmera Bay. Six story jobs, a wanted level up to 5 stars, police chases (including the police helicopter at 5 stars), courier streaks, near-miss bonuses, taxis and vans, and a living city with traffic, pedestrians, a HUD and a live minimap.
+**You are Jax Moreno**, a driver-for-hire with empty pockets in Palmera Bay. Ten story jobs, a wanted level up to 5 stars, police chases (including the police helicopter at 5 stars), courier streaks, near-miss bonuses, taxis and vans, and a living city with traffic, pedestrians, a HUD and a live minimap.
 
 ## Play
 
@@ -15,15 +15,15 @@ node serve.ts   # http://localhost:8080
 ## Systems
 
 - **Open-world city** — street grid with distinct districts, beach, docks, airport and casino.
-- **Six story jobs** — courier runs, heists, chases and a finale, with cash rewards.
-- **Wanted level 0–5 stars** — police cruisers chase and ram, roadblocks at 4 stars, helicopter at 5.
+- **Ten story jobs** — courier runs, heists, a street race, a hold-the-line defence and a vault heist, with cash rewards.
+- **Wanted level 0–5 stars** — police cruisers chase and ram, roadblocks at 3 stars, helicopter at 5.
 - **Driving** — steal and drive cars with arcade handling, handbrake slides, crashes and wrecks.
 - **HUD + minimap** — cash, health, job count, wanted stars, clock, speed and a live minimap.
-- **Extras** — taxi fares, courier streaks, near-miss bonuses, day/night cycle, synthetic WebAudio sound.
+- **Extras** — taxi fares, courier streaks, near-miss bonuses, day/night cycle, garage repairs, SMG crates, horn pull-overs, synthetic WebAudio sound.
 
 ## Controls
 
-WASD to move / drive, E to enter / exit a car, mouse to look, Shift to sprint, Space to brake, P to pause, M to mute.
+WASD to move / drive, E to enter / exit a car, mouse to look, Shift to sprint, Space to brake, H to honk, F to repair at the garage, P to pause, M to mute.
 
 ## Layout
 

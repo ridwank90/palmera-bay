@@ -5,8 +5,8 @@
 // him down, and an arrest means a fine and a trip to the hospital. Stars cool
 // off only when the player stays out of trouble and out of sight for a while.
 
-import { HELI, POLICE, WANTED, WORLD } from './config.js';
-import { randomRoadPoint, resolveCircle } from './city.js';
+import { HELI, POLICE, ROADBLOCK, WANTED, WORLD } from './config.js';
+import { intersections, randomRoadPoint, resolveCircle } from './city.js';
 
 const POLICE_CARS = 6;
 const OFFICERS = 6;
@@ -14,7 +14,7 @@ const OFFICERS = 6;
 export function createPolice(random) {
   const cars = [];
   for (let i = 0; i < POLICE_CARS; i++) {
-    cars.push({ active: false, x: 0, y: 0, angle: 0, speed: 0, lightTimer: 0, ramTimer: 0 });
+    cars.push({ active: false, x: 0, y: 0, angle: 0, speed: 0, lightTimer: 0, ramTimer: 0, blocked: false });
   }
   const officers = [];
   for (let i = 0; i < OFFICERS; i++) {
@@ -22,8 +22,53 @@ export function createPolice(random) {
   }
   // The helicopter: circles overhead at five stars, leaves when the heat drops.
   const heli = { active: false, leaving: false, x: 0, y: 0, angle: 0, rotor: 0 };
+  // A roadblock: two police cars parked across an intersection ahead of the
+  // player, plus an officer on foot. It seals the road until the heat drops,
+  // its timer runs out, or the player gets close enough to blow the trap.
+  const roadblock = { active: false, x: 0, y: 0, angle: 0, timer: 0, cooldown: 0, cars: [] };
   let wanted = 0;
   let decayTimer = 0;
+
+  /** Seal the intersection ahead of the player with two parked police cars. */
+  function deployRoadblock(px, py, heading) {
+    const ahead = { x: px + Math.cos(heading) * 520, y: py + Math.sin(heading) * 520 };
+    let best = null;
+    let bestD = Infinity;
+    for (const p of intersections()) {
+      const d = Math.hypot(p.x - ahead.x, p.y - ahead.y);
+      if (d < bestD) { bestD = d; best = p; }
+    }
+    if (!best || bestD > 700) return;
+    const parked = cars.filter((c) => !c.active).slice(0, ROADBLOCK.cars);
+    if (parked.length < ROADBLOCK.cars) return;
+    const horizontal = Math.abs(Math.cos(heading)) >= Math.abs(Math.sin(heading));
+    parked.forEach((car, i) => {
+      const off = (i - 0.5) * 56;
+      car.x = best.x + (horizontal ? 0 : off);
+      car.y = best.y + (horizontal ? off : 0);
+      car.angle = horizontal ? 0 : Math.PI / 2;
+      car.speed = 0;
+      car.lightTimer = Math.random() * 2;
+      car.ramTimer = 0;
+      car.blocked = true;
+      car.active = true;
+    });
+    roadblock.active = true;
+    roadblock.x = best.x;
+    roadblock.y = best.y;
+    roadblock.angle = horizontal ? 0 : Math.PI / 2;
+    roadblock.timer = ROADBLOCK.duration;
+    roadblock.cars = parked;
+    spawnOfficer(best.x + 40, best.y + 40);
+  }
+
+  function clearRoadblock() {
+    if (!roadblock.active) return;
+    for (const car of roadblock.cars) car.blocked = false;
+    roadblock.active = false;
+    roadblock.cars = [];
+    roadblock.cooldown = ROADBLOCK.cooldown;
+  }
 
   function addWanted(n) {
     if (n <= 0) return;
@@ -36,10 +81,11 @@ export function createPolice(random) {
   function clearWanted() {
     wanted = 0;
     decayTimer = 0;
-    for (const car of cars) car.active = false;
+    for (const car of cars) { car.active = false; car.blocked = false; }
     for (const officer of officers) officer.active = false;
     heli.active = false;
     heli.leaving = false;
+    clearRoadblock();
   }
 
   function activeCars() {
@@ -103,6 +149,14 @@ export function createPolice(random) {
     const dx = tx - car.x;
     const dy = ty - car.y;
     const dist = Math.hypot(dx, dy) || 1;
+    // A roadblock car holds its ground, lights flashing, until the player
+    // gets close enough that the trap is blown and it joins the chase.
+    if (car.blocked) {
+      car.lightTimer += dt;
+      car.ramTimer -= dt;
+      if (dist < ROADBLOCK.triggerRange) car.blocked = false;
+      return;
+    }
     const wantAngle = Math.atan2(dy, dx);
     let diff = wantAngle - car.angle;
     while (diff > Math.PI) diff -= Math.PI * 2;
@@ -194,6 +248,16 @@ export function createPolice(random) {
       }
     }
     heli.rotor += dt * 28;
+    // Roadblocks: at three stars and up, the PD seals an intersection ahead.
+    roadblock.cooldown -= dt;
+    if (wanted >= ROADBLOCK.minWanted && !roadblock.active && roadblock.cooldown <= 0) {
+      const heading = ctx.playerInCar && ctx.playerCar ? ctx.playerCar.angle : ctx.playerAngle || 0;
+      deployRoadblock(ctx.playerX, ctx.playerY, heading);
+    }
+    if (roadblock.active) {
+      roadblock.timer -= dt;
+      if (roadblock.timer <= 0 || wanted < ROADBLOCK.minWanted) clearRoadblock();
+    }
     // Police cars don't stack on one spot: push them apart from each other.
     for (let i = 0; i < cars.length; i++) {
       for (let j = i + 1; j < cars.length; j++) {
@@ -232,7 +296,7 @@ export function createPolice(random) {
   }
 
   return {
-    cars, officers, heli,
+    cars, officers, heli, roadblock,
     get wanted() { return wanted; },
     addWanted, clearWanted, nearestDistance, step,
   };

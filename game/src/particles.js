@@ -77,6 +77,17 @@ export function createParticles() {
     }
   }
 
+  /** A quick green-and-silver spark burst when the garage finishes a repair. */
+  function repairBurst(x, y) {
+    sparks(x - 14, y, 8);
+    sparks(x + 14, y, 8);
+    for (let i = 0; i < 6; i++) {
+      spawn(x + (Math.random() - 0.5) * 20, y - 6 + (Math.random() - 0.5) * 10,
+        (Math.random() - 0.5) * 60, -30 - Math.random() * 40,
+        0.4 + Math.random() * 0.3, 2 + Math.random() * 2, '#7fe39a', 0, 0);
+    }
+  }
+
   function skid(x, y, angle) {
     skids.push({ x, y, angle, life: 4 });
     if (skids.length > 220) skids.shift();
@@ -109,5 +120,5 @@ export function createParticles() {
     }
   }
 
-  return { spawn, smoke, sparks, muzzle, dust, confetti, splash, skid, floatText, step, pool, skids, floats };
+  return { spawn, smoke, sparks, muzzle, dust, confetti, splash, skid, repairBurst, floatText, step, pool, skids, floats };
 }

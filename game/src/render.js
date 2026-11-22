@@ -3,7 +3,8 @@
 // stars, health, cash, objective and minimap, and the title, pause and
 // busted/wasted/story screens. Drawing only — it never changes game state.
 
-import { BEACH, CAR, FONT, MARINA, PALETTE, PLAYER, ROADS, VIEW, WORLD } from './config.js';
+import { BEACH, CAR, FONT, MARINA, PALETTE, PLAYER, REPAIR, ROADS, VIEW, WEAPONS, WORLD } from './config.js';
+import { PLACES } from './city.js';
 
 const MINIMAP = { x: VIEW.width - 216, y: VIEW.height - 166, w: 200, h: 150 };
 
@@ -382,6 +383,9 @@ export function createRenderer(canvas) {
     if (objective) dot(objective.x, objective.y, PALETTE.marker, 5);
     for (const car of world.police.cars) if (car.active) dot(car.x, car.y, '#5aa9ff', 3);
     for (const e of world.combat.enemies) if (e.active) dot(e.x, e.y, '#e5534b', 3);
+    // Rico's race car, and the roadblock the PD is holding, show on the map too.
+    if (world.rival && world.rival.rival.active) dot(world.rival.rival.x, world.rival.rival.y, '#e5534b', 4);
+    if (world.police.roadblock && world.police.roadblock.active) dot(world.police.roadblock.x, world.police.roadblock.y, '#5aa9ff', 5);
     dot(world.player.x, world.player.y, '#ffffff', 4);
     ctx.restore();
     ctx.fillStyle = PALETTE.muted;
@@ -422,6 +426,16 @@ export function createRenderer(canvas) {
       ctx.font = `bold 12px ${FONT}`;
       ctx.fillText('HELICOPTER OVERHEAD', 26, 122);
     }
+    // A roadblock ahead: the PD has sealed an intersection — say so, in blue.
+    if (world.police.roadblock && world.police.roadblock.active) {
+      const y = world.police.heli && world.police.heli.active ? 136 : 104;
+      ctx.fillStyle = 'rgba(20, 60, 120, 0.9)';
+      roundRect(ctx, 14, y, 250, 26, 8);
+      ctx.fill();
+      ctx.fillStyle = '#d9e8ff';
+      ctx.font = `bold 12px ${FONT}`;
+      ctx.fillText('ROADBLOCK AHEAD — FIND ANOTHER WAY', 26, y + 18);
+    }
     // Top-right: cash and objective.
     const objective = world.objective;
     ctx.fillStyle = PALETTE.panel;
@@ -457,7 +471,7 @@ export function createRenderer(canvas) {
     ctx.textAlign = 'left';
     if (player.inCar) {
       const car = player.car;
-      ctx.fillText('WASD drive  •  SPACE handbrake  •  E get out', 26, VIEW.height - 44);
+      ctx.fillText('WASD drive  •  SPACE handbrake  •  E get out  •  F repair at garage', 26, VIEW.height - 44);
       ctx.fillStyle = car && car.health > 30 ? PALETTE.health : PALETTE.healthLow;
       ctx.fillRect(26, VIEW.height - 34, 150 * Math.max(0, (car ? car.health : 0) / 100), 8);
       ctx.strokeStyle = 'rgba(255,255,255,0.4)';
@@ -470,8 +484,23 @@ export function createRenderer(canvas) {
       ctx.fillStyle = PALETTE.gold;
       ctx.font = `bold 13px ${FONT}`;
       ctx.textAlign = 'right';
-      ctx.fillText(player.reloading ? 'RELOADING…' : `AMMO ${player.ammo}/${PLAYER.magSize}`, 502, VIEW.height - 44);
+      ctx.fillText(player.reloading ? 'RELOADING…' : `${WEAPONS[player.weapon].name.toUpperCase()} ${player.ammo}/${WEAPONS[player.weapon].mag}`, 502, VIEW.height - 44);
       ctx.textAlign = 'left';
+    }
+    // Garage prompt: in a damaged car at Moreno Motors, F repairs for $50.
+    if (player.inCar && player.car && player.car.health < CAR.health) {
+      const nearGarage = Math.hypot(player.x - PLACES.garage.x, player.y - PLACES.garage.y) < REPAIR.radius;
+      if (nearGarage) {
+        ctx.fillStyle = PALETTE.panel;
+        roundRect(ctx, 14, VIEW.height - 118, 330, 40, 10);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+        ctx.stroke();
+        ctx.fillStyle = PALETTE.text;
+        ctx.font = `bold 13px ${FONT}`;
+        ctx.textAlign = 'left';
+        ctx.fillText(`F — Repair car for $${REPAIR.cost} (Moreno Motors)`, 26, VIEW.height - 92);
+      }
     }
     // Speedometer left of the minimap, while driving (above it the
     // minimap's own label lives, so the two never overlap).
@@ -558,13 +587,14 @@ export function createRenderer(canvas) {
       'WASD move / drive  •  E steal a car or start a job  •  CLICK shoot',
       'SPACE punch / handbrake  •  R reload  •  T courier  •  H horn  •  P pause  •  M mute',
       'New: a police helicopter at five stars, near-miss bonuses, courier streaks.',
+      'v3: ten jobs, the Neon Grand Prix, the Vault, roadblocks, repairs and SMG crates.',
       'Click or press SPACE to start.',
     ]);
     ctx.textAlign = 'center';
     ctx.fillStyle = PALETTE.muted;
     ctx.font = `13px ${FONT}`;
     const bestStars = world.save.bestWanted > 0 ? '★'.repeat(world.save.bestWanted) + '☆'.repeat(5 - world.save.bestWanted) : '☆☆☆☆☆';
-    ctx.fillText(`Save: $${world.state.money.toLocaleString('en-US')}  •  Jobs done: ${world.missions.done.size}/6  •  Near misses: ${world.save.nearMisses || 0}  •  Hottest heat: ${bestStars}`, VIEW.width / 2, VIEW.height / 2 + 150);
+    ctx.fillText(`Save: $${world.state.money.toLocaleString('en-US')}  •  Jobs done: ${world.missions.done.size}/10  •  Near misses: ${world.save.nearMisses || 0}  •  Hottest heat: ${bestStars}`, VIEW.width / 2, VIEW.height / 2 + 150);
     ctx.textAlign = 'left';
   }
 
@@ -575,6 +605,7 @@ export function createRenderer(canvas) {
       '',
       `Cash: $${world.state.money.toLocaleString('en-US')}  •  Cars stolen: ${world.state.carsStolen}  •  Crew down: ${world.state.kills}`,
       `Jobs done: ${done.length === 0 ? 'none yet' : done.join(', ')}`,
+      `Grand Prix wins: ${world.save.grandPrixWins || 0}  •  SMG crates: ${world.save.cratesPickedUp || 0}  •  Repairs: ${world.save.repairsDone || 0}  •  Roadblocks dodged: ${world.save.roadblocksDodged || 0}`,
       '',
       'P / ESC resume  •  M mute  •  Click resume',
     ];
@@ -616,6 +647,21 @@ export function createRenderer(canvas) {
       ctx.textAlign = 'left';
     }
     drawMarker(world, world.objective);
+    // Weapon crates: a yellow box with a gun glyph, bobbing gently.
+    for (const crate of world.weaponCrates) {
+      if (!crate.active) continue;
+      const bob = Math.sin(world.state.time * 3 + crate.x) * 3;
+      ctx.fillStyle = '#e8c547';
+      ctx.fillRect(crate.x - 13, crate.y - 11 + bob, 26, 22);
+      ctx.strokeStyle = '#7a5c00';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(crate.x - 13, crate.y - 11 + bob, 26, 22);
+      ctx.fillStyle = '#3d2f00';
+      ctx.font = 'bold 12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('SMG', crate.x, crate.y + 4 + bob);
+      ctx.textAlign = 'left';
+    }
     // Traffic cars, then drivable cars, then police.
     for (const car of world.traffic.cars) {
       if (!car.active) continue;
@@ -655,6 +701,16 @@ export function createRenderer(canvas) {
       ctx.font = 'bold 9px sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('PD', car.x, car.y + 3);
+      ctx.textAlign = 'left';
+    }
+    // Rico's race car: red, with a gold RICO plate, always ahead of the pack.
+    if (world.rival && world.rival.rival.active) {
+      const r = world.rival.rival;
+      drawCarShape(ctx, r.x, r.y, r.angle, '#e5534b', true, false, false, false);
+      ctx.fillStyle = '#f2c94c';
+      ctx.font = 'bold 9px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('RICO', r.x, r.y + 3);
       ctx.textAlign = 'left';
     }
     // Pedestrians.
@@ -761,6 +817,21 @@ export function createRenderer(canvas) {
       ctx.lineTo(44, 0);
       ctx.stroke();
       ctx.restore();
+      ctx.restore();
+    }
+    // The roadblock: a striped barrier across the sealed intersection.
+    const rb = world.police.roadblock;
+    if (rb && rb.active) {
+      ctx.save();
+      ctx.translate(rb.x, rb.y);
+      ctx.rotate(rb.angle);
+      ctx.fillStyle = '#f2f2f2';
+      ctx.fillRect(-7, -34, 14, 68);
+      ctx.fillStyle = '#e5534b';
+      for (let i = 0; i < 4; i++) ctx.fillRect(-7, -34 + i * 17, 14, 8);
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(-7, -34, 14, 68);
       ctx.restore();
     }
     ctx.restore();

@@ -4,14 +4,15 @@
 // world owns the player and the drivable cars; everything else lives in its
 // own module and is driven from here through small `ctx` objects.
 
-import { CAR, MONEY, NEAR_MISS, PLAYER, VIEW, WANTED, WORLD } from './config.js';
+import { CAR, MONEY, NEAR_MISS, PLAYER, REPAIR, VIEW, WANTED, WEAPONS, WEAPON_CRATES, WORLD } from './config.js';
 import { PLACES, pointOnSand, randomRoadPoint, resolveCircle } from './city.js';
-import { ACTION_ENTER_CAR, ACTION_HORN, ACTION_JOB, ACTION_PUNCH, ACTION_RELOAD } from './input.js';
+import { ACTION_ENTER_CAR, ACTION_HORN, ACTION_JOB, ACTION_PUNCH, ACTION_RELOAD, ACTION_REPAIR } from './input.js';
 import { createCombat } from './combat.js';
 import { createTraffic } from './traffic.js';
 import { createPolice } from './police.js';
 import { createMissions } from './missions.js';
 import { createParticles } from './particles.js';
+import { createRival } from './rival.js';
 import { storeSave } from './save.js';
 
 const PARKED_SPOTS = [
@@ -28,6 +29,14 @@ export function createWorld(random, city, audio, save) {
   const traffic = createTraffic(random);
   const police = createPolice(random);
   const missions = createMissions(save.missionsDone || []);
+  // Rico's race car for the Neon Grand Prix — only on the track when a race runs.
+  const rival = createRival(random);
+  // Weapon crates: fixed spots around the city, one SMG each, restocked after a while.
+  const weaponCrates = [
+    { x: PLACES.alley.x, y: PLACES.alley.y, active: true, timer: 0, label: 'Back Alley' },
+    { x: PLACES.docks.x, y: PLACES.docks.y + 40, active: true, timer: 0, label: 'Palmera Docks' },
+    { x: PLACES.marina.x, y: PLACES.marina.y, active: true, timer: 0, label: 'Marina' },
+  ];
 
   const player = {
     x: PLACES.garage.x + 40,
@@ -39,7 +48,8 @@ export function createWorld(random, city, audio, save) {
     car: null,
     punchTimer: 0,
     shootTimer: 0,
-    ammo: PLAYER.magSize,
+    weapon: 'pistol',
+    ammo: WEAPONS.pistol.mag,
     reloading: false,
     reloadTimer: 0,
     shootWantedTimer: 0,
@@ -126,8 +136,47 @@ export function createWorld(random, city, audio, save) {
   }
 
   function spawnEnemies(x, y, n) {
-    for (let i = 0; i < n; i++) {
-      combat.spawnEnemy(x + (random() - 0.5) * 160, y + (random() - 0.5) * 160);
+    // A wave lands in a loose ring around the point, never on top of the player.
+    combat.spawnWave(x, y, n);
+  }
+
+  /** The garage at Moreno Motors: full repair for $50, car only, key F. */
+  function repairCar() {
+    const car = player.car;
+    if (!car || car.health >= CAR.health) return;
+    if (state.money < REPAIR.cost) {
+      toast(`Repair costs $${REPAIR.cost} — you are short.`, 'bad', 2.5);
+      return;
+    }
+    addMoney(-REPAIR.cost);
+    car.health = CAR.health;
+    save.repairsDone = (save.repairsDone || 0) + 1;
+    particles.repairBurst(car.x, car.y);
+    audio.repair();
+    toast(`Repaired at Moreno Motors — $${REPAIR.cost}.`, 'good', 2.5);
+    persist();
+  }
+
+  /** Weapon crates: walk over one on foot to swap the pistol for an SMG. */
+  function stepWeaponCrates(dt) {
+    for (const crate of weaponCrates) {
+      if (!crate.active) {
+        crate.timer -= dt;
+        if (crate.timer <= 0) crate.active = true;
+        continue;
+      }
+      if (!player.inCar && Math.hypot(crate.x - player.x, crate.y - player.y) < 34) {
+        crate.active = false;
+        crate.timer = WEAPON_CRATES.respawn;
+        player.weapon = 'smg';
+        player.ammo = WEAPONS.smg.mag;
+        player.reloading = false;
+        save.cratesPickedUp = (save.cratesPickedUp || 0) + 1;
+        particles.floatText(crate.x, crate.y - 24, 'SMG PICKED UP', '#f2c94c');
+        audio.pickup();
+        toast('SMG picked up — 30 rounds, fast fire.', 'good', 3);
+        persist();
+      }
     }
   }
 
@@ -144,6 +193,10 @@ export function createWorld(random, city, audio, save) {
     save.missionsPlayed = missions.done.size;
     save.nearMisses = state.nearMisses || 0;
     save.bestWanted = Math.max(save.bestWanted || 0, police.wanted);
+    save.grandPrixWins = save.grandPrixWins || 0;
+    save.cratesPickedUp = save.cratesPickedUp || 0;
+    save.repairsDone = save.repairsDone || 0;
+    save.roadblocksDodged = save.roadblocksDodged || 0;
     storeSave(save);
   }
 
@@ -219,10 +272,17 @@ export function createWorld(random, city, audio, save) {
     player.y = car.y;
     player.angle = car.angle;
     state.carsStolen += 1;
-    police.addWanted(WANTED.stealCar);
-    particles.floatText(car.x, car.y - 30, 'STOLEN — WANTED +1', '#e5534b');
+    // The Grand Prix car is an invited race entry, not a theft: no wanted
+    // for climbing into it. Every other car is still a stolen car.
+    const raceEntry = car.target && missions.active && missions.active.def.id === 'grandprix';
+    if (!raceEntry) {
+      police.addWanted(WANTED.stealCar);
+      particles.floatText(car.x, car.y - 30, 'STOLEN — WANTED +1', '#e5534b');
+      toast('Car stolen — the cops are on their way.', 'bad', 2.5);
+    } else {
+      toast('Race car — beat Rico to the finish line.', 'mission', 3);
+    }
     audio.engineStart();
-    toast('Car stolen — the cops are on their way.', 'bad', 2.5);
   }
 
   function exitCar() {
@@ -280,7 +340,7 @@ export function createWorld(random, city, audio, save) {
       player.reloadTimer -= dt;
       if (player.reloadTimer <= 0) {
         player.reloading = false;
-        player.ammo = PLAYER.magSize;
+        player.ammo = WEAPONS[player.weapon].mag;
       }
     } else if (mouse.down && player.shootTimer <= 0) {
       if (player.ammo <= 0) {
@@ -288,8 +348,8 @@ export function createWorld(random, city, audio, save) {
         player.reloadTimer = PLAYER.reloadTime;
       } else {
         player.ammo -= 1;
-        player.shootTimer = PLAYER.shotCooldown;
-        const muzzle = combat.fireBullet(player.x, player.y, player.aimAngle, true);
+        player.shootTimer = WEAPONS[player.weapon].cooldown;
+        const muzzle = combat.fireBullet(player.x, player.y, player.aimAngle, true, WEAPONS[player.weapon].damage);
         if (muzzle) particles.muzzle(muzzle.x, muzzle.y, player.aimAngle);
         audio.gunshot();
         traffic.scare(player.x, player.y, 320);
@@ -538,9 +598,15 @@ export function createWorld(random, city, audio, save) {
       }
     }
     if (actions & ACTION_RELOAD) {
-      if (!player.inCar && !player.reloading && player.ammo < PLAYER.magSize) {
+      if (!player.inCar && !player.reloading && player.ammo < WEAPONS[player.weapon].mag) {
         player.reloading = true;
         player.reloadTimer = PLAYER.reloadTime;
+      }
+    }
+    if (actions & ACTION_REPAIR) {
+      // F at the garage, in a car: Moreno Motors patches it up for $50.
+      if (player.inCar && player.car && Math.hypot(player.x - PLACES.garage.x, player.y - PLACES.garage.y) < REPAIR.radius) {
+        repairCar();
       }
     }
     if (actions & ACTION_JOB) {
@@ -552,8 +618,10 @@ export function createWorld(random, city, audio, save) {
         }
       }
     }
+    let honk = false;
     if (actions & ACTION_HORN) {
-      // H (horn): a honk that scatters the crowd, nothing more.
+      // H (horn): a honk that scatters the crowd and makes the car ahead pull over.
+      honk = true;
       audio.horn();
       traffic.scare(player.x, player.y, 220);
     }
@@ -564,11 +632,30 @@ export function createWorld(random, city, audio, save) {
     traffic.step(dt, {
       playerX: player.x, playerY: player.y,
       playerInCar: player.inCar, playerCar: player.car, playerSpeed: player.moveSpeed, city,
+      playerAngle: player.angle, honk,
     });
+
+    // Rico races the same loop: his car only moves while a race runs.
+    rival.step(dt, city);
+
+    // Slipping past a roadblock counts: the PD sealed the road and lost you.
+    if (police.roadblock.active) {
+      const rb = police.roadblock;
+      if (!state.roadblockDodged && Math.hypot(player.x - rb.x, player.y - rb.y) < 70) {
+        state.roadblockDodged = true;
+        save.roadblocksDodged = (save.roadblocksDodged || 0) + 1;
+        particles.floatText(player.x, player.y - 30, 'ROADBLOCK DODGED', '#7fe39a');
+        toast('Roadblock dodged — the PD lost you.', 'good', 2.5);
+        persist();
+      }
+    } else {
+      state.roadblockDodged = false;
+    }
 
     police.step(dt, {
       playerX: player.x, playerY: player.y,
       playerInCar: player.inCar, playerCar: player.car, city,
+      playerAngle: player.angle,
       onArrest,
       onRam: (damage) => {
         if (player.car) {
@@ -606,6 +693,7 @@ export function createWorld(random, city, audio, save) {
     missions.step(dt, missionCtx());
 
     stepCollisions();
+    stepWeaponCrates(dt);
 
     // Camera follows the player, clamped to the city.
     const tx = Math.max(VIEW.width / 2, Math.min(WORLD.width - VIEW.width / 2, player.x));
@@ -637,6 +725,18 @@ export function createWorld(random, city, audio, save) {
       addWanted: (n) => police.addWanted(n),
       spawnTargetCar,
       spawnEnemies,
+      aliveEnemies: () => combat.aliveEnemies(),
+      // The Grand Prix: Rico starts beside the player and races the same loop.
+      spawnRival: (checkpoints) => {
+        rival.stop();
+        const start = { x: PLACES.plaza.x - 70, y: PLACES.plaza.y - 30, angle: 0 };
+        rival.start(start.x, start.y, start.angle, checkpoints);
+      },
+      rivalFinished: () => rival.rival.finished,
+      onCheckpoint: (n, total) => {
+        audio.checkpoint();
+        particles.floatText(player.x, player.y - 30, `CHECKPOINT ${n}/${total}`, '#f2c94c');
+      },
       randomRoadPoint: () => randomRoadPoint(random),
       randomPlace: () => {
         const keys = Object.keys(PLACES);
@@ -645,6 +745,8 @@ export function createWorld(random, city, audio, save) {
       },
       onMissionComplete: (def) => {
         addMoney(def.reward);
+        if (def.id === 'grandprix') save.grandPrixWins = (save.grandPrixWins || 0) + 1;
+        rival.stop();
         audio.missionDone();
         audio.cash();
         particles.confetti(player.x, player.y, 24);
@@ -657,6 +759,7 @@ export function createWorld(random, city, audio, save) {
         }
       },
       onMissionFailed: (title, reason) => {
+        rival.stop();
         audio.missionFail();
         toast(`Job failed: ${title} — ${reason}`, 'bad', 4);
         persist();
@@ -727,6 +830,7 @@ export function createWorld(random, city, audio, save) {
 
   return {
     player, driveCars, pickups, camera, state, particles, combat, traffic, police, missions, city,
+    rival, weaponCrates,
     step, toast, persist, stage,
     get objective() { return missions.objective(); },
     get save() { return save; },

@@ -12,6 +12,7 @@ export const ACTION_CONFIRM = 16;
 export const ACTION_MUTE = 32;
 export const ACTION_JOB = 64;
 export const ACTION_HORN = 128;
+export const ACTION_REPAIR = 256;
 
 import { KEYS } from './config.js';
 
@@ -54,6 +55,7 @@ export function createInput(canvas) {
     if (KEYS.mute.includes(event.code)) actions |= ACTION_MUTE;
     if (KEYS.job.includes(event.code)) actions |= ACTION_JOB;
     if (KEYS.horn.includes(event.code)) actions |= ACTION_HORN;
+    if (KEYS.repair.includes(event.code)) actions |= ACTION_REPAIR;
     if (UP.has(event.code) || DOWN.has(event.code) || LEFT.has(event.code) || RIGHT.has(event.code) || KEYS.punch.includes(event.code)) {
       event.preventDefault();
     }

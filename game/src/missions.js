@@ -1,4 +1,4 @@
-// Missions and side jobs: the six-job story of Jax Moreno, plus repeatable
+// Missions and side jobs: the ten-job story of Jax Moreno, plus repeatable
 // courier runs for cash. A mission is a list of stages — go somewhere, steal
 // a car, clear the gunmen out, outrun the cops — and this module only knows
 // the stage list and whether each stage is done. The world owns the cars, the
@@ -69,6 +69,66 @@ const MISSIONS = [
       { type: 'escape', x: PLACES.marina.x, y: PLACES.marina.y, label: 'Marina Viewpoint', text: 'Lose the cops — reach the marina', seconds: 100 },
     ],
   },
+  // v3 jobs: the story continues after the Bay Job — smuggling, a street
+  // race, a hold-the-line defence and the biggest heist in the city.
+  {
+    id: 'smuggling',
+    title: 'Harbor Lights',
+    reward: 500,
+    briefing: 'Otis: "Crates from the harbor, no questions. Three drops, one quiet run to the hideout. Don\'t keep the buyers waiting."',
+    // The whole run is on the clock: 110 seconds for four drops.
+    timeLimit: 110,
+    stages: [
+      { type: 'gotoCar', x: PLACES.plaza.x, y: PLACES.plaza.y, label: 'Sol Plaza', text: 'Drop one: Sol Plaza' },
+      { type: 'gotoCar', x: PLACES.park.x, y: PLACES.park.y, label: 'Palm Court Park', text: 'Drop two: Palm Court Park' },
+      { type: 'gotoCar', x: PLACES.casino.x, y: PLACES.casino.y, label: 'Palmera Casino', text: 'Drop three: Palmera Casino' },
+      { type: 'gotoCar', x: PLACES.hideout.x, y: PLACES.hideout.y, label: 'Hideout', text: 'Quiet run home: the hideout' },
+    ],
+  },
+  {
+    id: 'grandprix',
+    title: 'Neon Grand Prix',
+    reward: 450,
+    briefing: 'Rico: "You call that driving, Jax? Four checkpoints, one loop of the city. Beat me to the finish line and the pot is yours."',
+    stages: [
+      { type: 'enterTargetCar', x: PLACES.plaza.x, y: PLACES.plaza.y, label: 'Start Line', text: 'Get in the race car at Sol Plaza' },
+      {
+        type: 'race',
+        checkpoints: [
+          { x: 2200, y: 550, label: 'East Bend' },
+          { x: 2200, y: 1250, label: 'Beach Road' },
+          { x: 600, y: 1250, label: 'West End' },
+          { x: 600, y: 550, label: 'Finish Line' },
+        ],
+        timeLimit: 60,
+        text: 'Neon Grand Prix — beat Rico to the finish line',
+      },
+    ],
+  },
+  {
+    id: 'harbor',
+    title: 'The Long Way Home',
+    reward: 550,
+    briefing: 'Lena: "The van is loaded and Cortez wants it back. Hold the loading bay while I finish, then drive it home yourself."',
+    stages: [
+      { type: 'goto', x: PLACES.docks.x, y: PLACES.docks.y, label: 'Palmera Docks', text: 'Meet Lena at the docks' },
+      { type: 'defend', x: PLACES.docks.x, y: PLACES.docks.y, label: 'Loading Bay', kills: 8, seconds: 60, text: 'Hold the loading bay — Lena is loading the van' },
+      { type: 'enterTargetCar', x: PLACES.docks.x, y: PLACES.docks.y, label: 'The Van', text: 'Get in the van' },
+      { type: 'gotoCar', x: PLACES.hideout.x, y: PLACES.hideout.y, label: 'Hideout', text: 'Drive the van to the hideout' },
+    ],
+  },
+  {
+    id: 'vault',
+    title: 'The Vault',
+    reward: 700,
+    briefing: 'Lena: "The Vault. Five guards, one big score. Case it, clear it, lose the cops, stash the cash."',
+    stages: [
+      { type: 'gotoFoot', x: PLACES.bank.x, y: PLACES.bank.y, label: 'Bay Trust Bank', text: 'Case the vault at Bay Trust Bank' },
+      { type: 'kill', x: PLACES.bank.x, y: PLACES.bank.y, label: 'Bay Trust Bank', text: 'Clear the bank guards', kills: 5 },
+      { type: 'escape', x: PLACES.chopShop.x, y: PLACES.chopShop.y, label: "Otis' Chop Shop", text: 'Lose the cops — reach the chop shop', seconds: 90 },
+      { type: 'gotoCar', x: PLACES.hideout.x, y: PLACES.hideout.y, label: 'Hideout', text: 'Stash the cash at the hideout' },
+    ],
+  },
 ];
 
 const COURIER_REWARD = COURIER.baseReward;
@@ -95,7 +155,9 @@ export function createMissions(doneIds = []) {
   function startNext(ctx) {
     const def = nextMission();
     if (!def || active) return null;
-    active = { def, stageIndex: 0, timer: 0, killsAtStart: ctx.kills || 0 };
+    active = { def, stageIndex: 0, timer: null, killsAtStart: ctx.kills || 0, checkIndex: 0, wave: 1 };
+    // A whole-mission clock (Harbor Lights): it starts with the first stage.
+    if (def.timeLimit) active.timer = def.timeLimit;
     beginStage(ctx);
     return def;
   }
@@ -107,7 +169,8 @@ export function createMissions(doneIds = []) {
    */
   function startSpecific(def, ctx, stageIndex = 0) {
     if (!def || active) return false;
-    active = { def, stageIndex, timer: 0, killsAtStart: ctx.kills || 0 };
+    active = { def, stageIndex, timer: null, killsAtStart: ctx.kills || 0, checkIndex: 0, wave: 1 };
+    if (stageIndex === 0 && def.timeLimit) active.timer = def.timeLimit;
     beginStage(ctx);
     return true;
   }
@@ -125,6 +188,19 @@ export function createMissions(doneIds = []) {
     if (stage.type === 'kill') {
       if (ctx.spawnEnemies) ctx.spawnEnemies(stage.x, stage.y, stage.kills);
       active.killsAtStart = ctx.kills || 0;
+    }
+    if (stage.type === 'defend') {
+      // Hold the line: the first wave lands at once, the rest as the crew thins.
+      active.timer = stage.seconds;
+      active.wave = 1;
+      active.killsAtStart = ctx.kills || 0;
+      if (ctx.spawnEnemies) ctx.spawnEnemies(stage.x, stage.y, 3);
+    }
+    if (stage.type === 'race') {
+      // The Grand Prix: Rico starts beside the player and races the same loop.
+      active.timer = stage.timeLimit;
+      active.checkIndex = 0;
+      if (ctx.spawnRival) ctx.spawnRival(stage.checkpoints);
     }
   }
 
@@ -161,17 +237,44 @@ export function createMissions(doneIds = []) {
       const stage = active.def.stages[active.stageIndex];
       const px = ctx.playerInCar && ctx.playerCar ? ctx.playerCar.x : ctx.playerX;
       const py = ctx.playerInCar && ctx.playerCar ? ctx.playerCar.y : ctx.playerY;
-      const dist = Math.hypot(stage.x - px, stage.y - py);
+      const dist = stage.x !== undefined ? Math.hypot(stage.x - px, stage.y - py) : Infinity;
       let doneStage = false;
       if (stage.type === 'goto') doneStage = dist < 70;
       else if (stage.type === 'gotoFoot') doneStage = !ctx.playerInCar && dist < 60;
       else if (stage.type === 'gotoCar') doneStage = !!ctx.playerInCar && dist < 80;
       else if (stage.type === 'enterTargetCar') doneStage = !!ctx.inTargetCar;
       else if (stage.type === 'kill') doneStage = (ctx.kills || 0) - active.killsAtStart >= stage.kills;
-      else if (stage.type === 'escape') {
+      else if (stage.type === 'escape') doneStage = dist < 80;
+      else if (stage.type === 'defend') {
+        // Waves land 3, then 3, then 2 — a fresh wave comes once the last one thins out.
+        const kills = (ctx.kills || 0) - active.killsAtStart;
+        const waves = [3, 3, 2];
+        if (ctx.aliveEnemies && ctx.aliveEnemies() <= 1 && kills < stage.kills && active.wave < 3) {
+          if (ctx.spawnEnemies) ctx.spawnEnemies(stage.x, stage.y, waves[active.wave]);
+          active.wave += 1;
+        }
+        doneStage = kills >= stage.kills;
+      } else if (stage.type === 'race') {
+        // Rico finished first: the pot is his.
+        if (ctx.rivalFinished && ctx.rivalFinished()) {
+          failMission(ctx, 'Rico beat you to the finish line.');
+          return;
+        }
+        const cp = stage.checkpoints[active.checkIndex];
+        if (Math.hypot(cp.x - px, cp.y - py) < 80) {
+          active.checkIndex += 1;
+          if (ctx.onCheckpoint) ctx.onCheckpoint(active.checkIndex, stage.checkpoints.length);
+          if (active.checkIndex >= stage.checkpoints.length) doneStage = true;
+        }
+      }
+      // The mission clock (escape, defend, race, whole-mission limit): it
+      // ticks on every timed stage, and running out fails the job.
+      if (active.timer !== null && active.timer !== undefined) {
         active.timer -= dt;
-        if (active.timer <= 0) { failMission(ctx, 'The cops closed in — you ran out of time.'); return; }
-        doneStage = dist < 80;
+        if (active.timer <= 0 && !doneStage) {
+          failMission(ctx, 'Out of time — the job slipped away.');
+          return;
+        }
       }
       if (doneStage) {
         active.stageIndex += 1;
@@ -208,12 +311,26 @@ export function createMissions(doneIds = []) {
   function objective() {
     if (active) {
       const stage = active.def.stages[active.stageIndex];
+      // The race points at its next checkpoint, not at a fixed stage target.
+      if (stage.type === 'race') {
+        const cp = stage.checkpoints[active.checkIndex];
+        return {
+          text: `Neon Grand Prix — checkpoint ${active.checkIndex + 1}/${stage.checkpoints.length}`,
+          x: cp.x,
+          y: cp.y,
+          label: cp.label,
+          timer: active.timer !== null && active.timer !== undefined ? Math.max(0, Math.ceil(active.timer)) : null,
+          missionTitle: active.def.title,
+          stageIndex: active.stageIndex + 1,
+          stageCount: active.def.stages.length,
+        };
+      }
       return {
         text: stage.text,
         x: stage.x,
         y: stage.y,
         label: stage.label,
-        timer: stage.type === 'escape' ? Math.max(0, Math.ceil(active.timer)) : null,
+        timer: active.timer !== null && active.timer !== undefined ? Math.max(0, Math.ceil(active.timer)) : null,
         missionTitle: active.def.title,
         stageIndex: active.stageIndex + 1,
         stageCount: active.def.stages.length,

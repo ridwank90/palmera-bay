@@ -3,9 +3,9 @@
 // renderer paints what is there. The game moves between three screens: title,
 // playing and paused, with busted/wasted/story overlays owned by the world.
 //
-// ?seed=N fixes the city. ?shot=chase|foot|mission|drive (with &seed=N)
-// stages that scene instead of running the loop, paints it twice and sets
-// window.__shotReady for a screenshot.
+// ?seed=N fixes the city. ?shot=chase|foot|mission|drive|race|vault (with
+// &seed=N) stages that scene instead of running the loop, paints it twice
+// and sets window.__shotReady for a screenshot.
 import { STEP, VIEW } from './config.js';
 import { createRandom } from './random.js';
 import { generateCity } from './city.js';
@@ -39,7 +39,7 @@ const renderer = createRenderer(canvas);
 const input = createInput(canvas);
 // Debug hook for play-testing (and the screenshot harness): the live world,
 // the seed, the build version, and a frames-per-second reading.
-window.__palmera = { world, seed, version: 'v2', fps: 0 };
+window.__palmera = { world, seed, version: 'v3', fps: 0 };
 
 // The canvas is 1280 x 720 inside and scales by CSS to fit the window; the
 // input needs the scale so the mouse aims in canvas pixels.

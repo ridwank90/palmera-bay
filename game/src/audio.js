@@ -138,6 +138,20 @@ export function createAudio() {
     [523, 659, 784, 1046].forEach((f, i) => tone(f, 0.22, 'triangle', 0.32, i * 0.11));
   }
 
+  /** A rising two-note chime when a race checkpoint is cleared. */
+  function checkpoint() {
+    if (!ensure()) return;
+    tone(784, 0.12, 'triangle', 0.3);
+    tone(1175, 0.18, 'triangle', 0.3, 0.09);
+  }
+
+  /** A low wrench clank and a bright ding when the garage finishes a repair. */
+  function repair() {
+    if (!ensure()) return;
+    tone(180, 0.12, 'sawtooth', 0.22);
+    tone(1046, 0.16, 'sine', 0.3, 0.12);
+  }
+
   function missionFail() {
     if (!ensure()) return;
     [392, 330, 262].forEach((f, i) => tone(f, 0.3, 'sawtooth', 0.18, i * 0.16));
@@ -317,7 +331,7 @@ export function createAudio() {
   return {
     unlock, setMuted, isMuted,
     gunshot, punch, crash, pickup, cash, missionDone, missionFail, click,
-    horn, whoosh, splash,
+    horn, whoosh, splash, checkpoint, repair,
     engineStart, engineSet, engineStop,
     sirenSet, sirenTick,
     musicStart, musicStop,

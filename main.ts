@@ -1,4 +1,4 @@
-// Palmera Bay v2 — my gta6-01 entry (Node 22, standard library only). The game is
+// Palmera Bay v3 — my gta6-01 entry (Node 22, standard library only). The game is
 // this directory's game/ folder: plain static files a desktop browser loads
 // offline (game/index.html and its ES modules, no library, no network request),
 // and this program hands it in. It copies game/ and screenshots/ from beside
@@ -6,14 +6,16 @@
 // reads, with the vendored make.fun library. The game itself is an original
 // open-world crime game: Jax Moreno comes home to a sun-soaked coastal city,
 // steals cars, outruns the Palmera Bay PD at up to five wanted stars — a
-// police helicopter circles overhead at five stars — and runs a six-job story
-// from his sister's garage to the Bay Job, with near-miss bonuses, courier
-// streaks, taxi cabs and delivery vans in traffic, shopfronts, streetlamps
-// and beach umbrellas across a richer city, gunfights with tough crew
-// members, cash to grab, a minimap, a speedometer, synthesized music and
-// sound, and a save in localStorage. The four screenshots in screenshots/
-// are real frames of it running (the first by name is the cover). Serve it
-// locally with `node serve.ts`, then open http://localhost:8080. Outside the
+// police helicopter circles overhead at five stars, roadblocks seal
+// intersections at three — and runs a ten-job story from his sister's garage
+// to the Vault, with the Neon Grand Prix against Rico, near-miss bonuses,
+// courier streaks, taxi cabs and delivery vans in traffic, shopfronts,
+// streetlamps and beach umbrellas across a richer city, gunfights with tough
+// crew members, SMG crates, garage repairs, a horn that makes traffic pull
+// over, cash to grab, a minimap, a speedometer, synthesized music and sound,
+// and a save in localStorage. The four screenshots in screenshots/ are real
+// frames of it running (the first by name is the cover). Serve it locally
+// with `node serve.ts`, then open http://localhost:8080. Outside the
 // grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
 
@@ -35,10 +37,14 @@ if (existsSync(join(here, 'screenshots'))) cpSync(join(here, 'screenshots'), joi
 // real frames shots.json promises (the first by name is the cover). A missing
 // file here means the build step, not the judge, should complain first.
 if (!existsSync(join(out, 'game', 'index.html'))) throw new Error('game/index.html is missing from the output');
+if (!existsSync(join(out, 'game', 'src', 'main.js'))) throw new Error('game/src/main.js is missing from the output');
 const shotList = JSON.parse(readFileSync(join(here, 'shots.json'), 'utf8'));
 if (!Array.isArray(shotList) || shotList.length < 3 || shotList.length > 4) {
   throw new Error(`shots.json must list 3 or 4 screenshots, found ${Array.isArray(shotList) ? shotList.length : 'none'}`);
 }
+// Two shots with the same name would silently overwrite each other in /output.
+const shotNames = new Set(shotList.map((s) => s.name));
+if (shotNames.size !== shotList.length) throw new Error('shots.json lists a screenshot name twice');
 for (const shot of shotList) {
   const shotPath = join(out, 'screenshots', shot.name);
   if (!existsSync(shotPath)) throw new Error(`screenshot ${shot.name} is missing from the output`);
@@ -49,7 +55,7 @@ for (const shot of shotList) {
   if (head[0] !== 0xff || head[1] !== 0xd8) throw new Error(`screenshot ${shot.name} is not a JPEG`);
 }
 const gameFiles = readdirSync(join(out, 'game'), { recursive: true });
-console.log(`Palmera Bay: ${gameFiles.length} files under game/, ${shotList.length} screenshots, cover ${shotList[0].name}`);
+console.log(`Palmera Bay v3: ${gameFiles.length} files under game/, ${shotList.length} screenshots, cover ${shotList[0].name}`);
 
 // The scorer's own caps (reference/gate.json): only text_max_bytes shapes the bytes; the others refuse an entry the
 // scorer would refuse (more than 4 screenshots or one over 256 KiB; more than 993 files in game/ or 48 MiB of game
